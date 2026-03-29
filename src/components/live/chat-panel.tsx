@@ -4,8 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRoomContext } from "@livekit/components-react";
 import { DataPacket_Kind, RoomEvent } from "livekit-client";
 import { Send, MessageSquare } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 interface ChatMessage {
@@ -102,7 +100,7 @@ export function ChatPanel({
           setMessages((prev) => [...prev, msg]);
         }
       } catch {
-        // Ignore non-JSON data messages (e.g. raise-hand signals)
+        // Ignore non-JSON data messages
       }
     };
 
@@ -171,23 +169,23 @@ export function ChatPanel({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex items-center gap-2 border-b border-gray-800 px-4 py-2.5">
-        <MessageSquare className="h-4 w-4 text-gray-400" />
-        <span className="text-sm font-medium text-gray-200">Chat</span>
-        <span className="text-xs text-gray-500">({messages.length})</span>
+      <div className="flex items-center gap-2 border-b border-white/10 px-4 py-2.5">
+        <MessageSquare className="h-4 w-4 text-white/40" />
+        <span className="text-sm font-medium text-white/80">Chat</span>
+        <span className="text-xs text-white/30">({messages.length})</span>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center">
-            <p className="text-sm text-gray-500">No messages yet</p>
+            <p className="text-sm text-white/25">No messages yet</p>
           </div>
         )}
         {messages.map((msg) => (
           <div key={msg.id}>
             {msg.type === "SYSTEM" ? (
               <div className="my-2 text-center">
-                <span className="rounded-full bg-gray-800 px-3 py-1 text-xs text-gray-400">
+                <span className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/40">
                   {msg.content}
                 </span>
               </div>
@@ -200,8 +198,8 @@ export function ChatPanel({
             ) : (
               <div
                 className={cn(
-                  "group rounded-lg px-3 py-1.5 hover:bg-gray-800/50",
-                  msg.userId === userId && "bg-gray-800/30"
+                  "group rounded-lg px-3 py-1.5 hover:bg-white/5",
+                  msg.userId === userId && "bg-white/[0.03]"
                 )}
               >
                 <div className="flex items-baseline gap-2">
@@ -210,16 +208,16 @@ export function ChatPanel({
                       "text-xs font-semibold",
                       msg.userId === userId
                         ? "text-emerald-400"
-                        : "text-gray-300"
+                        : "text-white/70"
                     )}
                   >
                     {msg.userId === userId ? "You" : msg.userName}
                   </span>
-                  <span className="text-[10px] text-gray-600">
+                  <span className="text-[10px] text-white/25">
                     {formatTime(msg.createdAt)}
                   </span>
                 </div>
-                <p className="text-sm text-gray-300 break-words">
+                <p className="text-sm text-white/80 break-words">
                   {msg.content}
                 </p>
               </div>
@@ -231,23 +229,22 @@ export function ChatPanel({
 
       <form
         onSubmit={sendMessage}
-        className="flex gap-2 border-t border-gray-800 px-3 py-2.5"
+        className="flex gap-2 border-t border-white/10 px-3 py-2.5"
       >
-        <Input
+        <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a message..."
-          className="flex-1 border-gray-700 bg-gray-800 text-gray-200 placeholder:text-gray-500 focus-visible:ring-gray-600"
+          className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/30 outline-none focus:border-white/20 focus:ring-1 focus:ring-white/10"
           maxLength={2000}
         />
-        <Button
+        <button
           type="submit"
-          size="icon"
           disabled={!input.trim() || isSending}
-          className="shrink-0 bg-emerald-600 hover:bg-emerald-700"
+          className="inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40 disabled:pointer-events-none transition-colors"
         >
           <Send className="h-4 w-4" />
-        </Button>
+        </button>
       </form>
     </div>
   );

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import { useRoomContext } from "@livekit/components-react";
 import { RoomEvent } from "livekit-client";
 import { Hand, Mic, X, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -181,54 +180,34 @@ export function RaiseHand({
     [room]
   );
 
-  const revokeSpeak = useCallback(
-    async (participantId: string) => {
-      try {
-        await fetch("/api/livekit/session", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            lectureId,
-            participantId,
-            canPublish: false,
-          }),
-        });
-        toast.info("Speak permission revoked");
-      } catch {
-        toast.error("Failed to revoke permission");
-      }
-    },
-    [lectureId]
-  );
-
   if (!isTeacher) {
     return (
-      <Button
-        variant="outline"
+      <button
+        type="button"
         onClick={handRaised ? lowerHand : raiseHand}
         className={cn(
-          "gap-2",
+          "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors",
           handRaised
-            ? "border-yellow-500 bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 hover:text-yellow-300"
-            : "border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white"
+            ? "bg-yellow-500/20 text-yellow-400 ring-1 ring-yellow-500/50 hover:bg-yellow-500/30"
+            : "bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20"
         )}
       >
         <Hand
           className={cn("h-4 w-4", handRaised && "animate-bounce")}
         />
         {handRaised ? "Lower Hand" : "Raise Hand"}
-      </Button>
+      </button>
     );
   }
 
   if (raisedHands.length === 0) return null;
 
   return (
-    <div className="border-b border-gray-800">
+    <div className="border-b border-white/10">
       <div className="flex items-center gap-2 px-4 py-2">
         <Hand className="h-4 w-4 text-yellow-400" />
-        <span className="text-sm font-medium text-gray-200">Raised Hands</span>
-        <Badge variant="secondary" className="ml-auto text-xs">
+        <span className="text-sm font-medium text-white/80">Raised Hands</span>
+        <Badge className="ml-auto text-xs bg-white/10 text-white/70 border-white/10">
           {raisedHands.length}
         </Badge>
       </div>
@@ -236,21 +215,20 @@ export function RaiseHand({
         {raisedHands.map((hand) => (
           <div
             key={hand.participantId}
-            className="flex items-center justify-between rounded-lg bg-gray-800/50 px-3 py-2"
+            className="flex items-center justify-between rounded-lg bg-white/5 px-3 py-2"
           >
             <div className="flex items-center gap-2">
               <Hand className="h-3.5 w-3.5 text-yellow-400" />
-              <span className="text-sm text-gray-300 truncate max-w-[120px]">
+              <span className="text-sm text-white/70 truncate max-w-[120px]">
                 {hand.participantName}
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => allowToSpeak(hand.participantId)}
                 disabled={grantingId === hand.participantId}
-                className="h-7 gap-1 px-2 text-xs text-green-400 hover:bg-green-500/20 hover:text-green-300"
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
               >
                 {grantingId === hand.participantId ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -258,15 +236,14 @@ export function RaiseHand({
                   <Mic className="h-3 w-3" />
                 )}
                 Allow
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
+              </button>
+              <button
+                type="button"
                 onClick={() => dismissHand(hand.participantId)}
-                className="h-7 w-7 p-0 text-gray-500 hover:bg-red-500/20 hover:text-red-400"
+                className="inline-flex items-center justify-center h-6 w-6 rounded-md text-white/30 hover:bg-red-500/20 hover:text-red-400 transition-colors"
               >
                 <X className="h-3.5 w-3.5" />
-              </Button>
+              </button>
             </div>
           </div>
         ))}
