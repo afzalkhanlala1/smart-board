@@ -1,0 +1,252 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LectureType {
+  LIVE
+  RECORDED
+}
+
+enum LectureStatus {
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  REFUNDED
+}
+
+enum MessageType {
+  TEXT
+  SYSTEM
+  HAND_RAISE
+}
+
+enum NotificationType {
+  ENROLLMENT
+  LECTURE_REMINDER
+  RECORDING_AVAILABLE
+  TEACHER_APPROVED
+  PAYOUT
+  SYSTEM
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role
+  avatar       String?
+  bio          String?
+  isApproved   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  courses        Course[]
+  enrollments    Enrollment[]
+  transactions   Transaction[]
+  teacherEarning TeacherEarning?
+  cartItems      CartItem[]
+  chatMessages   ChatMessage[]
+  notifications  Notification[]
+
+  @@index([role])
+  @@index([email])
+}
+
+model Course {
+  id          String       @id @default(cuid())
+  teacherId   String
+  title       String
+  description String
+  thumbnail   String?
+  gradeLevel  String
+  subject     String
+  price       Decimal      @db.Decimal(10, 2)
+  status      CourseStatus @default(DRAFT)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  teacher      User          @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  lectures     Lecture[]
+  enrollments  Enrollment[]
+  resources    Resource[]
+  transactions Transaction[]
+  cartItems    CartItem[]
+
+  @@index([teacherId])
+  @@index([status])
+  @@index([subject])
+  @@index([gradeLevel])
+}
+
+model Lecture {
+  id           String        @id @default(cuid())
+  courseId      String
+  title        String
+  description  String?
+  scheduledAt  DateTime?
+  duration     Int?
+  recordingUrl String?
+  type         LectureType
+  status       LectureStatus @default(SCHEDULED)
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  liveSession LiveSession?
+  resources   Resource[]
+
+  @@index([courseId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+model LiveSession {
+  id                String    @id @default(cuid())
+  lectureId         String    @unique
+  livekitRoom       String    @unique
+  startedAt         DateTime?
+  endedAt           DateTime?
+  recordingUrl      String?
+  egressId          String?
+  participantsCount Int       @default(0)
+  createdAt         DateTime  @default(now())
+
+  lecture      Lecture       @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  chatMessages ChatMessage[]
+
+  @@index([livekitRoom])
+}
+
+model Enrollment {
+  id            String        @id @default(cuid())
+  studentId     String
+  courseId       String
+  enrolledAt    DateTime      @default(now())
+  paymentStatus PaymentStatus @default(PENDING)
+  progress      Json          @default("{}")
+
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+  @@index([studentId])
+  @@index([courseId])
+}
+
+model Transaction {
+  id               String        @id @default(cuid())
+  studentId        String
+  courseId          String
+  amount           Decimal       @db.Decimal(10, 2)
+  platformFee      Decimal       @db.Decimal(10, 2)
+  teacherEarning   Decimal       @db.Decimal(10, 2)
+  stripePaymentId  String?
+  stripeSessionId  String?       @unique
+  status           PaymentStatus @default(PENDING)
+  createdAt        DateTime      @default(now())
+
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([courseId])
+  @@index([status])
+}
+
+model TeacherEarning {
+  id             String    @id @default(cuid())
+  teacherId      String    @unique
+  totalEarned    Decimal   @default(0) @db.Decimal(10, 2)
+  pendingBalance Decimal   @default(0) @db.Decimal(10, 2)
+  paidOut        Decimal   @default(0) @db.Decimal(10, 2)
+  lastPayoutDate DateTime?
+  updatedAt      DateTime  @updatedAt
+
+  teacher User @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  studentId String
+  courseId   String
+  addedAt   DateTime @default(now())
+
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+  @@index([studentId])
+}
+
+model Resource {
+  id        String   @id @default(cuid())
+  courseId   String
+  lectureId String?
+  title     String
+  fileUrl   String
+  fileType  String
+  fileSize  Int
+  createdAt DateTime @default(now())
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lecture Lecture?  @relation(fields: [lectureId], references: [id], onDelete: SetNull)
+
+  @@index([courseId])
+  @@index([lectureId])
+}
+
+model ChatMessage {
+  id            String      @id @default(cuid())
+  liveSessionId String
+  userId        String
+  content       String
+  type          MessageType @default(TEXT)
+  createdAt     DateTime    @default(now())
+
+  liveSession LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([liveSessionId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  link      String?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
