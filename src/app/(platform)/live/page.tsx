@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Radio, Clock, Video, Users, CalendarDays } from "lucide-react";
+import { Prisma } from "@prisma/client";
 
 export default async function LiveIndexPage() {
   const session = await auth();
@@ -17,27 +18,22 @@ export default async function LiveIndexPage() {
 
   const now = new Date();
 
-  const whereClause = isAdmin
-    ? { type: "LIVE" as const }
-    : isTeacher
-      ? { type: "LIVE" as const, course: { teacherId: session.user.id } }
-      : {
-          type: "LIVE" as const,
-          course: {
-            enrollments: {
-              some: {
-                studentId: session.user.id,
-                paymentStatus: "COMPLETED",
-              },
-            },
-          },
-        };
+  const baseWhere: Prisma.LectureWhereInput = { type: "LIVE" };
+  if (isTeacher) {
+    baseWhere.course = { teacherId: session.user.id };
+  } else if (!isAdmin) {
+    baseWhere.course = {
+      enrollments: {
+        some: {
+          studentId: session.user.id,
+          paymentStatus: "COMPLETED",
+        },
+      },
+    };
+  }
 
   const liveLectures = await db.lecture.findMany({
-    where: {
-      ...whereClause,
-      status: "LIVE",
-    },
+    where: { ...baseWhere, status: "LIVE" },
     include: {
       course: { select: { id: true, title: true, teacher: { select: { name: true } } } },
       liveSession: { select: { id: true, startedAt: true, participantsCount: true } },
@@ -46,11 +42,7 @@ export default async function LiveIndexPage() {
   });
 
   const upcomingLectures = await db.lecture.findMany({
-    where: {
-      ...whereClause,
-      status: "SCHEDULED",
-      scheduledAt: { gte: now },
-    },
+    where: { ...baseWhere, status: "SCHEDULED", scheduledAt: { gte: now } },
     include: {
       course: { select: { id: true, title: true, teacher: { select: { name: true } } } },
     },
