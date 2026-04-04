@@ -12,11 +12,11 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 const SEED_EMAILS = [
-  "admin@smartboard.academy",
-  "teacher1@smartboard.academy",
-  "teacher2@smartboard.academy",
-  "student1@smartboard.academy",
-  "student2@smartboard.academy",
+  "admin@edutania.com",
+  "teacher1@edutania.com",
+  "teacher2@edutania.com",
+  "student1@edutania.com",
+  "student2@edutania.com",
 ] as const;
 
 const BCRYPT_ROUNDS = 10;
@@ -47,7 +47,7 @@ async function main() {
   await prisma.user.createMany({
     data: [
       {
-        email: "admin@smartboard.academy",
+        email: "admin@edutania.com",
         passwordHash: adminHash,
         name: "Alex Rivera",
         role: Role.ADMIN,
@@ -55,7 +55,7 @@ async function main() {
         bio: "Platform administrator.",
       },
       {
-        email: "teacher1@smartboard.academy",
+        email: "teacher1@edutania.com",
         passwordHash: teacher1Hash,
         name: "Dr. Sarah Chen",
         role: Role.TEACHER,
@@ -63,7 +63,7 @@ async function main() {
         bio: "Mathematics educator with 12 years of classroom experience.",
       },
       {
-        email: "teacher2@smartboard.academy",
+        email: "teacher2@edutania.com",
         passwordHash: teacher2Hash,
         name: "James Okonkwo",
         role: Role.TEACHER,
@@ -71,14 +71,14 @@ async function main() {
         bio: "Science and literature specialist; former curriculum lead.",
       },
       {
-        email: "student1@smartboard.academy",
+        email: "student1@edutania.com",
         passwordHash: student1Hash,
         name: "Maya Patel",
         role: Role.STUDENT,
         isApproved: false,
       },
       {
-        email: "student2@smartboard.academy",
+        email: "student2@edutania.com",
         passwordHash: student2Hash,
         name: "Jordan Lee",
         role: Role.STUDENT,
@@ -95,9 +95,9 @@ async function main() {
     (typeof users)[number]
   >;
 
-  const teacher1 = userByEmail["teacher1@smartboard.academy"];
-  const teacher2 = userByEmail["teacher2@smartboard.academy"];
-  const student1 = userByEmail["student1@smartboard.academy"];
+  const teacher1 = userByEmail["teacher1@edutania.com"];
+  const teacher2 = userByEmail["teacher2@edutania.com"];
+  const student1 = userByEmail["student1@edutania.com"];
 
   await prisma.course.createMany({
     data: [

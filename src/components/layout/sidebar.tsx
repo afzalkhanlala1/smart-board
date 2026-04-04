@@ -108,7 +108,7 @@ export function Sidebar() {
               <MonitorPlay className="h-3.5 w-3.5 text-primary-foreground" />
             </div>
             <span className="text-base font-bold tracking-tight text-foreground">
-              SmartBoard
+              Edutania
             </span>
           </Link>
         )}

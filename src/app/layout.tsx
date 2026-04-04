@@ -7,7 +7,7 @@ import { Providers } from "@/components/providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "SmartBoard Academy - Next-Generation EdTech Platform",
+  title: "Edutania - Next-Generation EdTech Platform",
   description:
     "Full-curriculum, STEM-enriched education via smart board technology. Live classes, cloud recordings, and parent dashboards.",
 };

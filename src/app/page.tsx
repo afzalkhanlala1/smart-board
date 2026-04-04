@@ -25,7 +25,7 @@ export default async function HomePage() {
 
   const features = [
     {
-      title: "Live SmartBoard Classes",
+      title: "Live Interactive Classes",
       description:
         "Real-time annotations, drawing tools, and interactive teaching on a professional smart board interface.",
       icon: MonitorPlay,
@@ -91,8 +91,7 @@ export default async function HomePage() {
               <MonitorPlay className="h-4 w-4 text-primary-foreground" />
             </div>
             <span className="text-lg font-bold tracking-tight">
-              SmartBoard{" "}
-              <span className="text-primary">Academy</span>
+              Edu<span className="text-primary">tania</span>
             </span>
           </div>
           <nav className="flex items-center gap-2">
@@ -241,7 +240,7 @@ export default async function HomePage() {
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="mx-auto max-w-2xl text-center">
               <p className="text-sm font-semibold uppercase tracking-widest text-primary mb-3">
-                Why SmartBoard
+                Why Edutania
               </p>
               <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
                 Built for serious learners
@@ -252,7 +251,7 @@ export default async function HomePage() {
                 {
                   icon: TrendingUp,
                   title: "68% higher completion rate",
-                  body: "Students on SmartBoard Academy complete courses at nearly twice the industry average.",
+                  body: "Students on Edutania complete courses at nearly twice the industry average.",
                   color: "text-emerald-400",
                   bg: "bg-emerald-500/10",
                 },
@@ -307,7 +306,7 @@ export default async function HomePage() {
                 </h2>
                 <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
                   Create a free account to enroll in courses or apply to teach
-                  on the SmartBoard Academy platform.
+                  on the Edutania platform.
                 </p>
                 <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                   <Button
@@ -337,9 +336,9 @@ export default async function HomePage() {
             <div className="flex h-6 w-6 items-center justify-center rounded bg-primary shadow shadow-primary/30">
               <MonitorPlay className="h-3 w-3 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-foreground">SmartBoard Academy</span>
+            <span className="font-semibold text-foreground">Edutania</span>
           </div>
-          <p>&copy; {new Date().getFullYear()} SmartBoard Academy. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Edutania. All rights reserved.</p>
         </div>
       </footer>
     </div>

@@ -94,7 +94,7 @@ export default function RegisterPage() {
               Create an account
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Join SmartBoard Academy today
+              Join Edutania today
             </p>
           </div>
         </div>
