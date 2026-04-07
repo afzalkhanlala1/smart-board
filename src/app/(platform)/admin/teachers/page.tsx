@@ -60,7 +60,7 @@ export default async function AdminTeachersPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Teacher Management</h1>
+        <h1 className="text-3xl font-black tracking-tight">Teacher Management</h1>
         <p className="text-muted-foreground">
           Review applications and manage approved teachers.
         </p>

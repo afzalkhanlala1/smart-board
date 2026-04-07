@@ -118,9 +118,9 @@ export default async function CourseCatalogPage({ searchParams }: PageProps) {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Browse Courses</h1>
-          <p className="text-muted-foreground">
-            Discover {pagination.total} course{pagination.total !== 1 ? "s" : ""} from expert teachers
+          <h1 className="text-3xl font-black tracking-tight">Browse Courses</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            {pagination.total} course{pagination.total !== 1 ? "s" : ""} available
           </p>
         </div>
         <div className="hidden lg:block">
@@ -150,12 +150,12 @@ export default async function CourseCatalogPage({ searchParams }: PageProps) {
                 ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="rounded-full bg-muted p-4 mb-4">
-                  <BookOpen className="h-8 w-8 text-muted-foreground" />
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="h-20 w-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+                  <BookOpen className="h-10 w-10 text-muted-foreground/40" />
                 </div>
-                <h3 className="font-semibold text-lg mb-1">No courses found</h3>
-                <p className="text-muted-foreground text-sm max-w-md">
+                <h3 className="font-bold text-lg">No courses found</h3>
+                <p className="text-muted-foreground text-sm mt-1 max-w-md">
                   Try adjusting your search or filter criteria to find courses.
                 </p>
               </div>

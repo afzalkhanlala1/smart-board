@@ -29,6 +29,9 @@ yarn-error.log*
 # editor / tool configs
 .claude/
 
+# Base 44 generated UI project (separate)
+edutania, Base 44/
+
 # vercel
 .vercel
 

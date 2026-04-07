@@ -62,6 +62,7 @@ export default async function LivePage({ params }: LivePageProps) {
     <div className="-m-6">
       <LiveRoom
         lectureId={params.lectureId}
+        courseId={lecture.course.id}
         roomName={roomName}
         userName={session.user.name}
         userId={session.user.id}

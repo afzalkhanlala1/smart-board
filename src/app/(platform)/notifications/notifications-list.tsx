@@ -2,25 +2,16 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import Link from "next/link";
 import {
-  Bell,
-  BookOpen,
-  Clock,
-  Video,
-  ShieldCheck,
-  DollarSign,
-  Info,
-  CheckCheck,
-  ChevronLeft,
-  ChevronRight,
+  Bell, GraduationCap, Video, DollarSign, UserCheck, Info, CheckCheck,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Notification {
   id: string;
@@ -41,26 +32,13 @@ interface NotificationsListProps {
   totalCount: number;
 }
 
-const NOTIFICATION_ICONS: Record<string, typeof Bell> = {
-  ENROLLMENT: BookOpen,
-  LECTURE_REMINDER: Clock,
-  RECORDING_AVAILABLE: Video,
-  TEACHER_APPROVED: ShieldCheck,
-  PAYOUT: DollarSign,
-  SYSTEM: Info,
-};
-
-function getNotificationIcon(type: string) {
-  return NOTIFICATION_ICONS[type] || Bell;
-}
-
-const TYPE_LABELS: Record<string, string> = {
-  ENROLLMENT: "Enrollment",
-  LECTURE_REMINDER: "Reminder",
-  RECORDING_AVAILABLE: "Recording",
-  TEACHER_APPROVED: "Approved",
-  PAYOUT: "Payout",
-  SYSTEM: "System",
+const typeConfig: Record<string, { icon: typeof Bell; color: string; label: string }> = {
+  ENROLLMENT: { icon: GraduationCap, color: "bg-primary/15 text-primary", label: "Enrollment" },
+  LECTURE_REMINDER: { icon: Video, color: "bg-sky-500/15 text-sky-400", label: "Reminder" },
+  RECORDING_AVAILABLE: { icon: Video, color: "bg-violet-500/15 text-violet-400", label: "Recording" },
+  TEACHER_APPROVED: { icon: UserCheck, color: "bg-emerald-500/15 text-emerald-400", label: "Approval" },
+  PAYOUT: { icon: DollarSign, color: "bg-orange-500/15 text-orange-400", label: "Payout" },
+  SYSTEM: { icon: Info, color: "bg-muted text-muted-foreground", label: "System" },
 };
 
 export function NotificationsList({
@@ -74,33 +52,22 @@ export function NotificationsList({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [notifications, setNotifications] =
-    useState<Notification[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<Notification[]>(initialNotifications);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
 
   const handleFilterChange = (filter: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (filter === "all") {
-      params.delete("filter");
-    } else {
-      params.set("filter", filter);
-    }
+    if (filter === "all") params.delete("filter");
+    else params.set("filter", filter);
     params.delete("page");
-    startTransition(() => {
-      router.push(`/notifications?${params.toString()}`);
-    });
+    startTransition(() => router.push(`/notifications?${params.toString()}`));
   };
 
   const handlePageChange = (page: number) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (page <= 1) {
-      params.delete("page");
-    } else {
-      params.set("page", String(page));
-    }
-    startTransition(() => {
-      router.push(`/notifications?${params.toString()}`);
-    });
+    if (page <= 1) params.delete("page");
+    else params.set("page", String(page));
+    startTransition(() => router.push(`/notifications?${params.toString()}`));
   };
 
   const handleMarkAllRead = async () => {
@@ -131,153 +98,108 @@ export function NotificationsList({
           body: JSON.stringify({ notificationIds: [notification.id] }),
         });
         setNotifications((prev) =>
-          prev.map((n) =>
-            n.id === notification.id ? { ...n, isRead: true } : n
-          )
+          prev.map((n) => (n.id === notification.id ? { ...n, isRead: true } : n))
         );
       } catch {
         /* fail silently */
       }
     }
-    if (notification.link) {
-      router.push(notification.link);
-    }
+    if (notification.link) router.push(notification.link);
   };
 
   return (
-    <div className={cn("space-y-4", isPending && "opacity-70")}>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Tabs value={currentFilter} onValueChange={handleFilterChange}>
-          <TabsList>
-            <TabsTrigger value="all">
-              All
-              <Badge variant="secondary" className="ml-1.5">
-                {totalCount}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="unread">
-              Unread
-              {unreadCount > 0 && (
-                <Badge variant="destructive" className="ml-1.5">
-                  {unreadCount}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-
+    <div className={cn("space-y-6", isPending && "opacity-70")}>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-black tracking-tight">Notifications</h1>
+          <p className="text-muted-foreground text-sm mt-1">{unreadCount} unread</p>
+        </div>
         {unreadCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleMarkAllRead}
-            disabled={isMarkingAll}
-          >
-            <CheckCheck className="mr-2 h-4 w-4" />
-            Mark all as read
+          <Button variant="outline" size="sm" className="gap-2 h-9" onClick={handleMarkAllRead} disabled={isMarkingAll}>
+            <CheckCheck className="h-4 w-4" /> Mark all read
           </Button>
         )}
       </div>
 
+      {/* Pill filter tabs */}
+      <div className="flex gap-2">
+        {(["all", "unread"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => handleFilterChange(f)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+              currentFilter === f
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {f === "all" ? `All (${totalCount})` : `Unread (${unreadCount})`}
+          </button>
+        ))}
+      </div>
+
       {notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-muted-foreground">
-          <Bell className="mb-3 h-10 w-10 opacity-40" />
-          <p className="text-sm font-medium">
-            {currentFilter === "unread"
-              ? "No unread notifications"
-              : "No notifications yet"}
-          </p>
-          <p className="mt-1 text-xs">
-            {currentFilter === "unread"
-              ? "You're all caught up!"
-              : "Notifications will appear here when there's activity."}
+        <div className="flex flex-col items-center justify-center py-24 text-center rounded-2xl border border-border bg-card">
+          <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+            <Bell className="h-8 w-8 text-muted-foreground/40" />
+          </div>
+          <h3 className="font-bold">You&apos;re all caught up!</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            No {currentFilter === "unread" ? "unread " : ""}notifications
           </p>
         </div>
       ) : (
-        <div className="divide-y rounded-lg border bg-card">
-          {notifications.map((notification) => {
-            const Icon = getNotificationIcon(notification.type);
-            return (
-              <button
-                key={notification.id}
-                onClick={() => handleNotificationClick(notification)}
-                className={cn(
-                  "flex w-full gap-4 p-4 text-left transition-colors hover:bg-muted/50",
-                  !notification.isRead && "bg-primary/5"
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-full",
-                    notification.isRead
-                      ? "bg-muted text-muted-foreground"
-                      : "bg-primary/10 text-primary"
-                  )}
+        <div className="space-y-2">
+          <AnimatePresence>
+            {notifications.map((n, i) => {
+              const cfg = typeConfig[n.type] || typeConfig.SYSTEM;
+              const Icon = cfg.icon;
+              return (
+                <motion.div
+                  key={n.id}
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04 }}
+                  onClick={() => handleNotificationClick(n)}
+                  className={`flex items-start gap-4 rounded-2xl border p-4 cursor-pointer transition-all hover:border-primary/20 ${
+                    n.isRead ? "border-border bg-card" : "border-primary/25 bg-primary/[0.03]"
+                  }`}
                 >
-                  <Icon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p
-                          className={cn(
-                            "truncate text-sm",
-                            !notification.isRead && "font-semibold"
-                          )}
-                        >
-                          {notification.title}
-                        </p>
-                        <Badge variant="outline" className="shrink-0 text-[10px]">
-                          {TYPE_LABELS[notification.type] || notification.type}
-                        </Badge>
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
-                        {notification.message}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs text-muted-foreground/70">
-                        {formatDistanceToNow(
-                          new Date(notification.createdAt),
-                          { addSuffix: true }
-                        )}
-                      </span>
-                      {!notification.isRead && (
-                        <span className="h-2 w-2 rounded-full bg-primary" />
-                      )}
-                    </div>
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${cfg.color}`}>
+                    <Icon className="h-5 w-5" />
                   </div>
-                </div>
-              </button>
-            );
-          })}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold">{n.title}</p>
+                      <Badge variant="outline" className="text-xs h-5 px-2">{cfg.label}</Badge>
+                      {!n.isRead && <span className="h-2 w-2 rounded-full bg-primary shrink-0" />}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">{n.message}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1.5">
+                      {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+                    </p>
+                  </div>
+                  {n.link && (
+                    <Button variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={(e) => { e.stopPropagation(); router.push(n.link!); }}>
+                      View
+                    </Button>
+                  )}
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
         </div>
       )}
 
       {totalPages > 1 && (
         <div className="flex items-center justify-between pt-2">
-          <p className="text-sm text-muted-foreground">
-            Page {currentPage} of {totalPages}
-          </p>
+          <p className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</p>
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage <= 1 || isPending}
-            >
-              <ChevronLeft className="mr-1 h-4 w-4" />
-              Previous
+            <Button variant="outline" size="sm" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage <= 1 || isPending}>
+              <ChevronLeft className="mr-1 h-4 w-4" /> Previous
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage >= totalPages || isPending}
-            >
-              Next
-              <ChevronRight className="ml-1 h-4 w-4" />
+            <Button variant="outline" size="sm" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage >= totalPages || isPending}>
+              Next <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </div>
         </div>

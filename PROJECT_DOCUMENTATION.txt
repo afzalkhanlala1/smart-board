@@ -1,0 +1,1158 @@
+================================================================================
+EDUTANIA - COMPLETE PROJECT DOCUMENTATION
+================================================================================
+Generated for UI rebuilding with Base 44
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1.  PROJECT OVERVIEW
+2.  TECH STACK & VERSIONS
+3.  USER ROLES & PERMISSIONS
+4.  AUTHENTICATION FLOW
+5.  DATABASE SCHEMA (COMPLETE)
+6.  ALL PAGES/ROUTES WITH UI DESCRIPTIONS
+7.  ALL API ENDPOINTS
+8.  NAVIGATION STRUCTURE
+9.  LIVE STREAMING FLOW
+10. PAYMENT/CHECKOUT FLOW
+11. ALL UI COMPONENTS
+12. COLOR SCHEME & DESIGN TOKENS
+13. USER JOURNEYS
+14. FEATURE LIST (EXISTING + PLANNED)
+15. FILE STORAGE & MEDIA
+16. ENVIRONMENT VARIABLES
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+Name: Edutania (branded as "EduPlatform" internally)
+Tagline: "Next-Generation EdTech Platform"
+Description: A full-stack educational platform where teachers conduct live
+lectures with real-time video, chat, and raise-hand features. Students access
+courses through a cart-based Stripe checkout payment system. Admins manage
+teacher approvals, monitor transactions, and view platform-wide reports.
+
+The platform supports three distinct user roles (Student, Teacher, Admin), each
+with their own dashboard, navigation, and feature set.
+
+Revenue Model:
+- Platform takes 15% commission on each course sale
+- Teachers receive 85% of the course price
+- Monthly automated payouts with $50 minimum threshold
+
+================================================================================
+2. TECH STACK & VERSIONS
+================================================================================
+
+Framework:        Next.js 14 (App Router) with TypeScript
+Runtime:          Node.js 18+
+Database:         PostgreSQL 16
+ORM:              Prisma 5.19
+Authentication:   NextAuth.js v5 (beta 25) - Credentials provider, JWT strategy
+Payments:         Stripe Checkout (stripe 17.0)
+Live Video:       LiveKit (open-source WebRTC)
+                  - Client: livekit-client 2.6, @livekit/components-react 2.7
+                  - Server: livekit-server-sdk 2.9
+Styling:          Tailwind CSS 3.4 + shadcn/ui components
+State Management: React Query (TanStack Query 5.59)
+Theme:            next-themes 0.4 (dark mode default)
+Charts:           Recharts 2.13
+Calendar:         FullCalendar 6.1
+Icons:            Lucide React 0.447
+Toasts:           Sonner 1.5
+Form Validation:  Zod 3.23
+File Uploads:     react-dropzone 14.2
+Video Player:     video.js 8.18 (for recorded content)
+Fonts:            Inter (Google Fonts)
+Deployment:       Vercel
+Infrastructure:   Docker Compose (PostgreSQL + LiveKit for local dev)
+
+Package Manager:  npm
+Build Command:    prisma generate && next build
+
+================================================================================
+3. USER ROLES & PERMISSIONS
+================================================================================
+
+ROLE: STUDENT
+- Can browse course catalog (public, no login required for browsing)
+- Can register with immediate approval (isApproved = true)
+- Can add courses to cart and checkout via Stripe
+- Can view enrolled courses and watch recorded lectures
+- Can join live lectures for enrolled courses
+- Can raise hand during live sessions
+- Can chat during live sessions
+- Can view calendar with scheduled lectures
+- Can receive notifications
+- Can edit profile and change password
+- Dashboard shows: enrolled courses, upcoming lectures, hours watched, assignments
+
+ROLE: TEACHER
+- Must register and wait for admin approval (isApproved = false initially)
+- Redirected to /pending-approval until approved
+- Can create courses with title, description, thumbnail, subject, grade level, price
+- Can add lectures (LIVE or RECORDED type) to courses
+- Can upload videos and resource files
+- Can schedule live lectures with date/time
+- Can conduct live sessions: start/end session, camera, mic, screen share
+- Can approve/deny student speaking requests (raise hand)
+- Can view earnings dashboard with charts and transaction history
+- Can request payout when pending balance >= $50
+- Dashboard shows: earnings, active courses, total students, upcoming lectures
+
+ROLE: ADMIN
+- Created manually or via seed data (no registration flow)
+- Can approve or reject teacher applications
+- Rejecting a teacher demotes their role to STUDENT
+- Can view all courses platform-wide with status filters
+- Can view all transactions with pagination
+- Can view financial reports with revenue charts
+- Can join any live session as a viewer/publisher
+- Dashboard shows: total users, total courses, platform revenue, active teachers
+
+================================================================================
+4. AUTHENTICATION FLOW
+================================================================================
+
+Provider: Credentials (email + password)
+Strategy: JWT (not database sessions)
+Password Hashing: bcryptjs
+
+REGISTRATION FLOW:
+1. User visits /register
+2. Selects role: Student or Teacher
+3. Fills in: name, email, password (min 6 chars)
+4. POST /api/auth/register
+   - Validates input with Zod
+   - Checks for existing email
+   - Hashes password with bcryptjs
+   - Creates User record
+   - If TEACHER: sets isApproved=false, creates TeacherEarning record
+   - If STUDENT: sets isApproved=true
+5. Auto sign-in after registration
+6. Student -> redirected to /dashboard
+7. Teacher -> redirected to /pending-approval
+
+LOGIN FLOW:
+1. User visits /login
+2. Enters email + password
+3. signIn("credentials", { redirect: false })
+4. NextAuth authorize function:
+   - Looks up user by email
+   - Compares password hash with bcryptjs
+   - Returns user object with id, name, email, role, isApproved, image
+5. JWT callback stores: id, role, isApproved, name, email
+6. Session callback exposes: id, role, isApproved on session.user
+7. On success -> redirect to /dashboard
+8. On failure -> toast "Invalid email or password"
+
+MIDDLEWARE PROTECTION:
+- Public routes: /, /login, /register, /courses, /courses/browse*
+- API routes: pass through (each route handles its own auth)
+- Logged-in users on /login or /register -> redirect /dashboard
+- Not logged in on protected route -> redirect /login
+- Teacher with !isApproved on any route except /pending-approval -> redirect /pending-approval
+- Non-admin on /admin/* -> redirect /dashboard
+
+SESSION OBJECT:
+{
+  user: {
+    id: string,
+    name: string,
+    email: string,
+    role: "ADMIN" | "TEACHER" | "STUDENT",
+    isApproved: boolean,
+    image: string | null
+  }
+}
+
+================================================================================
+5. DATABASE SCHEMA (COMPLETE)
+================================================================================
+
+DATABASE: PostgreSQL
+ORM: Prisma
+
+--- ENUMS ---
+
+Role: ADMIN, TEACHER, STUDENT
+CourseStatus: DRAFT, PUBLISHED, ARCHIVED
+LectureType: LIVE, RECORDED
+LectureStatus: SCHEDULED, LIVE, COMPLETED, CANCELLED
+PaymentStatus: PENDING, COMPLETED, REFUNDED
+MessageType: TEXT, SYSTEM, HAND_RAISE
+NotificationType: ENROLLMENT, LECTURE_REMINDER, RECORDING_AVAILABLE,
+                  TEACHER_APPROVED, PAYOUT, SYSTEM
+
+--- MODELS ---
+
+USER
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  role          Role      (ADMIN, TEACHER, STUDENT)
+  avatar        String?   (URL or file path)
+  bio           String?
+  isApproved    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  Relations: courses[], enrollments[], transactions[], teacherEarning?,
+             cartItems[], chatMessages[], notifications[]
+  Indexes: [role], [email]
+
+COURSE
+  id            String       @id @default(cuid())
+  teacherId     String       -> User
+  title         String
+  description   String       (long text)
+  thumbnail     String?      (file path like "thumbnails/xxx.jpg")
+  gradeLevel    String       (e.g. "Grade 10", "University", "All Levels")
+  subject       String       (e.g. "Mathematics", "Computer Science", "Physics")
+  price         Decimal(10,2)
+  status        CourseStatus @default(DRAFT)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  Relations: teacher (User), lectures[], enrollments[], resources[],
+             transactions[], cartItems[]
+  Indexes: [teacherId], [status], [subject], [gradeLevel]
+
+LECTURE
+  id            String        @id @default(cuid())
+  courseId       String        -> Course
+  title         String
+  description   String?
+  scheduledAt   DateTime?     (for live lectures)
+  duration      Int?          (minutes)
+  recordingUrl  String?       (file path for recorded video)
+  type          LectureType   (LIVE or RECORDED)
+  status        LectureStatus @default(SCHEDULED)
+  sortOrder     Int           @default(0)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  Relations: course (Course), liveSession? (LiveSession), resources[]
+  Indexes: [courseId], [scheduledAt], [status]
+
+LIVE_SESSION
+  id                String    @id @default(cuid())
+  lectureId         String    @unique -> Lecture
+  livekitRoom       String    @unique (format: "lecture-{lectureId}")
+  startedAt         DateTime?
+  endedAt           DateTime?
+  recordingUrl      String?
+  egressId          String?   (LiveKit recording egress ID)
+  participantsCount Int       @default(0)
+  createdAt         DateTime  @default(now())
+  Relations: lecture (Lecture), chatMessages[]
+  Indexes: [livekitRoom]
+
+ENROLLMENT
+  studentId     String        -> User
+  courseId       String        -> Course
+  enrolledAt    DateTime      @default(now())
+  paymentStatus PaymentStatus @default(PENDING)
+  progress      Json          @default("{}")
+  Unique: [studentId, courseId]
+  Indexes: [studentId], [courseId]
+
+TRANSACTION
+  id               String        @id @default(cuid())
+  studentId        String        -> User
+  courseId          String        -> Course
+  amount           Decimal(10,2)
+  platformFee      Decimal(10,2) (15% of amount)
+  teacherEarning   Decimal(10,2) (85% of amount)
+  stripePaymentId  String?
+  stripeSessionId  String?       @unique
+  status           PaymentStatus @default(PENDING)
+  createdAt        DateTime      @default(now())
+  Indexes: [studentId], [courseId], [status]
+
+TEACHER_EARNING
+  id             String    @id @default(cuid())
+  teacherId      String    @unique -> User
+  totalEarned    Decimal(10,2) @default(0)
+  pendingBalance Decimal(10,2) @default(0)
+  paidOut        Decimal(10,2) @default(0)
+  lastPayoutDate DateTime?
+  updatedAt      DateTime  @updatedAt
+
+CART_ITEM
+  id        String   @id @default(cuid())
+  studentId String   -> User
+  courseId   String   -> Course
+  addedAt   DateTime @default(now())
+  Unique: [studentId, courseId]
+  Indexes: [studentId]
+
+RESOURCE
+  id        String   @id @default(cuid())
+  courseId   String   -> Course
+  lectureId String?  -> Lecture (optional)
+  title     String
+  fileUrl   String   (file path)
+  fileType  String   (e.g. "pdf", "mp4", "docx")
+  fileSize  Int      (bytes)
+  createdAt DateTime @default(now())
+  Indexes: [courseId], [lectureId]
+
+CHAT_MESSAGE
+  id            String      @id @default(cuid())
+  liveSessionId String      -> LiveSession
+  userId        String      -> User
+  content       String
+  type          MessageType @default(TEXT)
+  createdAt     DateTime    @default(now())
+  Indexes: [liveSessionId], [createdAt]
+
+NOTIFICATION
+  id        String           @id @default(cuid())
+  userId    String           -> User
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  link      String?          (optional URL to navigate to)
+  createdAt DateTime         @default(now())
+  Indexes: [userId, isRead], [createdAt]
+
+================================================================================
+6. ALL PAGES/ROUTES WITH UI DESCRIPTIONS
+================================================================================
+
+--- PUBLIC PAGES ---
+
+/ (Landing Page)
+  - Marketing homepage
+  - Sticky header with logo "Edutania", theme toggle, Sign in, Get started buttons
+  - Hero section with gradient text "Where great teaching meets technology"
+  - Animated pill badge "Next-Generation EdTech Platform"
+  - Two CTA buttons: "Start learning" -> /courses, "Become a teacher" -> /register?role=teacher
+  - Trust pills: "Rated 4.9 by students", "10,000+ enrolled", "UAE, British & IB aligned"
+  - Stats band: 10,000+ students, 500+ courses, 50+ teachers, 4.9 rating
+  - 6 feature cards in 3-column grid: Live Classes, Expert Teachers, Cloud Recordings, STEM & Robotics, Secure Payments, Parent Dashboard
+  - Social proof section with 3 cards: completion rate, studio quality, curriculum-aligned
+  - CTA section: "Ready to begin your journey?" with gradient border card
+  - Footer with copyright
+  - If user is logged in, auto-redirects to /dashboard
+
+/login (Login Page)
+  - Centered card layout with background glow effects
+  - Edutania logo (MonitorPlay icon in green square)
+  - "Welcome back" heading, "Sign in to Edutania" subtitle
+  - Form fields: Email (text input), Password (password input with show/hide toggle)
+  - "Sign in" button with arrow icon
+  - Link to /register: "Don't have an account? Create account"
+  - Loading state: button shows "Signing in..."
+  - Error: toast notification "Invalid email or password"
+
+/register (Registration Page)
+  - Centered card layout with background glow effects
+  - Edutania logo
+  - "Create an account" heading, "Join Edutania today" subtitle
+  - Role selector: two styled cards side by side
+    - Student card: GraduationCap icon, "Enroll, attend live sessions, track progress"
+    - Teacher card: Users icon, "Create courses, host classes, earn. Approval required"
+  - Form fields: Full name, Email, Password (min 6 chars, show/hide toggle)
+  - "Create account" button
+  - Link to /login: "Already have an account? Sign in"
+  - Teacher registration shows toast about pending admin approval
+
+/pending-approval (Teacher Pending Page)
+  - Simple centered message telling teacher their account is pending admin approval
+  - No sidebar/header (outside platform layout)
+
+--- PLATFORM PAGES (with sidebar + header) ---
+
+/dashboard (Dashboard - Role-Based)
+  STUDENT VIEW:
+  - Greeting: "Welcome back, {firstName}" with Student badge
+  - 4 stat cards in grid: Enrolled courses, Upcoming lectures, Hours watched, Assignments due
+  - Each stat card has: label, large number, subtitle, icon with colored background, trend indicator
+  - 2-column grid below:
+    - Left: "Upcoming lectures" card with list items showing title, date/time badges
+    - Right: "Recently watched" card with progress bars for each course
+  
+  TEACHER VIEW:
+  - "Teacher Dashboard" heading with Teacher badge (sky blue)
+  - 4 stat cards: Earnings (30 days), Active courses, Total students, Upcoming live lectures
+  - 2-column grid:
+    - Left: "Earnings overview" with stacked horizontal progress bars (Course sales, Live sessions, Tips)
+    - Right: "Upcoming lectures" list with enrollment counts
+  
+  ADMIN VIEW:
+  - "Admin Dashboard" heading with Admin badge (rose)
+  - 4 stat cards: Total users, Total courses, Platform revenue (YTD), Active teachers
+  - 2-column grid (2:1 ratio):
+    - Left (2 cols): "Platform health" with 4 metric cards (Support tickets, Live lectures today, Avg completion rate, Churn)
+    - Right (1 col): "Quick actions" with 4 clickable action items with arrow icons
+
+/courses (Course Catalog)
+  - Header: "Browse Courses" with course count, sort dropdown (top right)
+  - 2-column layout: sidebar filters (left, 256px) + course grid (right)
+  - Filters sidebar (sticky): search text, subject dropdown, grade dropdown, price range
+  - Course grid: responsive 1/2/3 columns
+  - Each course card shows: thumbnail, subject badge, grade badge, title, teacher name, price, enrollment count
+  - Empty state: BookOpen icon with "No courses found" message
+  - Pagination at bottom: Previous/Next buttons, page numbers with ellipsis
+
+/courses/[courseId] (Course Detail)
+  - 3-column layout: 2 cols content + 1 col sidebar card
+  - Content area:
+    - Thumbnail (aspect-video, rounded-xl) or gradient placeholder
+    - Subject badge + grade badge + status badge (if not published)
+    - Course title (3xl bold)
+    - Teacher info: avatar with initials, name, bio snippet
+    - Stats row: enrollment count, lecture count, last updated date
+  - Sidebar card (sticky):
+    - Price (3xl bold) or "Free"
+    - Action button: "Edit Course" (owner), "Already Enrolled" (enrolled), "Add to Cart" (not enrolled), "Sign in to Enroll" (not logged in)
+    - Separator
+    - Course details: subject, grade level, lecture count, live sessions, resources
+  - Tabs below: Overview (description), Curriculum (numbered lecture list), Resources (downloadable files)
+  - Curriculum list: numbered items with title, description, Live/Recorded badge, duration, scheduled date
+  - Resources: file icon, title, file type + size, download button (enrolled/owner only)
+
+/courses/[courseId]/watch/[lectureId] (Watch Recording)
+  - Video player (video.js) for recorded content
+  - Course title, lecture title
+  - Back navigation to course page
+
+/my-courses (Student Enrolled Courses)
+  - Grid of enrolled courses with progress tracking
+  - Each card shows course thumbnail, title, teacher, progress percentage
+  - Link to continue watching
+
+/cart (Shopping Cart)
+  - List of cart items with course thumbnail, title, teacher, price
+  - Remove item button for each
+  - Cart summary: subtotal, item count
+  - "Proceed to Checkout" button -> Stripe Checkout
+  - Empty cart state with link to browse courses
+
+/cart/success (Checkout Success)
+  - Success message with checkmark
+  - "Your enrollment is confirmed" text
+  - Links to: My Courses, Browse More
+
+/cart/cancel (Checkout Cancelled)
+  - Cancellation message
+  - Link back to cart
+
+/calendar (Student/Teacher Calendar)
+  - FullCalendar integration (month/week/day views)
+  - Events sourced from GET /api/calendar
+  - Color-coded: green for LIVE lectures, blue for RECORDED, red for completed
+  - Click event -> dialog with lecture details
+  - Dialog shows: title, course name, date/time, status badge, type badge
+  - Actions in dialog: "Join Live Session" (if LIVE), "Watch Recording" (if recorded), "View Course"
+
+/teacher/courses (Teacher Course Management)
+  - Header: "My Courses" with "New Course" button
+  - 3 stat cards: Total Courses, Published count, Total Enrollments
+  - Table with columns: Course (thumbnail + title + subject), Status badge, Price, Students, Lectures, Updated date, Edit button
+  - Empty state: "No courses yet" with "Create Your First Course" CTA
+
+/create-course (Create/Edit Course)
+  - Supports ?courseId= query param for editing existing course
+  - Multi-section form:
+    - Course Details: title, description (textarea), subject (dropdown), grade level (dropdown), price (number input)
+    - Thumbnail: drag-and-drop upload zone (react-dropzone), preview of uploaded image
+    - Status: Draft/Published toggle
+  - If editing: "Lectures" section below with:
+    - List of existing lectures with edit/delete
+    - "Add Lecture" button -> dialog/form
+    - Lecture form: title, description, type (LIVE/RECORDED), scheduled date (for LIVE), video upload (for RECORDED), sort order
+  - Resources section: upload files (PDF, docs), associate with course or specific lecture
+  - Save button: creates or updates course via API
+
+/schedule (Teacher Schedule)
+  - FullCalendar integration showing teacher's lectures
+  - Can click dates to view/edit scheduled lectures
+  - Shows LIVE lectures with scheduled times
+  - Quick access to go live for upcoming sessions
+
+/earnings (Teacher Earnings)
+  - Header: "Earnings" with description
+  - 4 stat cards: Total Earned, Pending Balance, Paid Out, Last Payout date
+  - Payout section: threshold info ($50 min), "Request Payout" button (disabled if < $50)
+  - Earnings chart: 12-month bar chart (Recharts) showing monthly earnings
+  - Transaction history table: Date, Course, Student, Amount, Platform Fee, Your Earning, Status badge
+  - Empty state for no transactions
+
+/live (Live Sessions Hub)
+  - Lists live and upcoming LIVE lectures
+  - For teachers: shows their own course lectures
+  - For students: shows lectures from enrolled courses
+  - For admins: shows all live lectures
+  - Each card shows: lecture title, course title, scheduled time, status badge, "Join" button
+  - Sections: "Live Now" (status=LIVE) and "Upcoming" (status=SCHEDULED, type=LIVE)
+
+/live/[lectureId] (Live Session Room)
+  - Full-screen dark UI (bg-[#0a0f1a])
+  - Negative margin to override platform padding
+  - Header bar: back arrow (-> course page), lecture title, course title, LIVE badge (pulsing), participant count
+  - Main area split: video (left, flex-1) + sidebar (right, 320-384px)
+  - Video area:
+    - Priority display: screen share > remote camera > local camera
+    - Placeholder states: "Your camera is off", "Start the session to begin broadcasting", "Waiting for the teacher to start..."
+  - Controls bar (bottom of video):
+    - TEACHER: Start Session button (green) OR mic/camera/screen share toggles + End Session button (red)
+    - STUDENT: Raise Hand / Lower Hand button
+    - Toggles are circular buttons with active/inactive color states
+    - Mic: red when muted, white when active
+    - Camera: red when off, white when on
+    - Screen share: green when sharing, white when not
+  - Right sidebar:
+    - TEACHER: Raised Hands panel (if any hands raised) with Allow/Dismiss buttons per student
+    - Chat panel: message list, send input, message formatting (own messages in green, others in white)
+    - Chat messages show: sender name, timestamp, message content
+    - System messages centered with special styling
+    - Hand raise messages in yellow
+
+/profile (User Profile)
+  - Avatar with initials
+  - Form: name, bio (textarea)
+  - Save Changes button
+  - Fetches via GET /api/profile, saves via PATCH /api/profile
+
+/settings (User Settings)
+  - Theme section: theme toggle (dark/light)
+  - Password change section: current password, new password, confirm password
+  - Save password button
+  - Uses PUT /api/profile for password change
+
+/notifications (Notifications)
+  - Paginated list of notifications
+  - Filter tabs: All, Unread
+  - Each notification: icon (based on type), title, message, timestamp, read/unread indicator
+  - Click to mark as read and navigate to link if present
+
+/admin/teachers (Admin Teacher Management)
+  - Table of teachers with: name, email, registration date, approval status
+  - Action buttons: Approve (green), Reject (red) for pending teachers
+  - Approved teachers show "Approved" badge
+  - Pagination
+
+/admin/courses (Admin Course Overview)
+  - All courses on platform with status filter (All/Draft/Published/Archived)
+  - Table: thumbnail, title, teacher name, subject, grade, price, enrollments, status, date
+  - Links to course detail pages
+
+/admin/transactions (Admin Transactions)
+  - All platform transactions with pagination
+  - Table: date, student, course, amount, platform fee, teacher earning, status, Stripe ID
+  - Status badges: Pending (yellow), Completed (green), Refunded (red)
+
+/admin/reports (Admin Reports)
+  - Revenue overview with charts (Recharts)
+  - Multiple chart types: monthly revenue bar chart, status distribution pie chart
+  - Summary cards: total revenue, total platform fees, total teacher earnings, refunds
+  - Date range filtering
+
+================================================================================
+7. ALL API ENDPOINTS
+================================================================================
+
+--- AUTHENTICATION ---
+
+POST /api/auth/register
+  Body: { name, email, password, role: "STUDENT"|"TEACHER" }
+  Response: { message: "..." }
+  Creates user, hashes password, creates TeacherEarning for teachers
+
+GET/POST /api/auth/[...nextauth]
+  NextAuth.js handlers for session management
+
+--- PROFILE ---
+
+GET /api/profile
+  Response: { id, name, email, role, avatar, bio, isApproved, createdAt }
+
+PUT /api/profile
+  Body: { name?, bio?, currentPassword?, newPassword? }
+  Updates user profile or changes password
+
+--- COURSES ---
+
+GET /api/courses
+  Query: page, limit, search, subject, grade, minPrice, maxPrice, sort
+  Response: { courses: [...], pagination: { page, limit, total, totalPages } }
+  Filters by PUBLISHED status for non-owners
+
+POST /api/courses
+  Body: { title, description, subject, gradeLevel, price, status?, thumbnail? }
+  Auth: TEACHER or ADMIN only
+  Creates a new course
+
+GET /api/courses/[courseId]
+  Response: Full course with lectures, resources, teacher info, enrollment count
+
+PUT /api/courses/[courseId]
+  Body: { title?, description?, subject?, gradeLevel?, price?, status?, thumbnail? }
+  Auth: Course owner or ADMIN
+  Updates course
+
+DELETE /api/courses/[courseId]
+  Auth: Course owner or ADMIN
+
+--- LECTURES ---
+
+GET /api/courses/[courseId]/lectures
+  Response: Array of lectures ordered by sortOrder
+
+POST /api/courses/[courseId]/lectures
+  Body: { title, description?, type, scheduledAt?, duration?, recordingUrl?, sortOrder? }
+  Auth: Course teacher only
+
+GET /api/courses/[courseId]/lectures/[lectureId]
+  Response: Single lecture with live session info
+
+PUT /api/courses/[courseId]/lectures/[lectureId]
+  Updates lecture fields
+
+DELETE /api/courses/[courseId]/lectures/[lectureId]
+  Deletes lecture
+
+--- CART ---
+
+GET /api/cart
+  Response: Array of cart items with course details
+
+POST /api/cart
+  Body: { courseId }
+  Adds course to cart (prevents duplicates)
+
+DELETE /api/cart
+  Body: { cartItemId } or { courseId }
+  Removes item from cart
+
+--- CHECKOUT ---
+
+POST /api/checkout
+  Creates Stripe Checkout Session from cart items
+  Response: { url: "stripe-checkout-url" }
+
+POST /api/webhooks/stripe
+  Stripe webhook handler for checkout.session.completed
+  Creates enrollments, transactions, updates teacher earnings
+
+--- FILE HANDLING ---
+
+POST /api/upload
+  Multipart form data upload
+  Auth: TEACHER or ADMIN
+  Accepts: videos (mp4, webm), documents (pdf, doc, docx), images (jpg, png)
+  Size limits per type
+  Returns: { path: "relative/file/path" }
+
+GET /api/files/[...path]
+  Serves files from storage directory
+  Thumbnails are publicly accessible
+  Other files require authentication
+
+GET /api/stream/[videoId]
+  Range-based video streaming for recorded lectures
+  Auth: enrolled student, course teacher, or admin
+
+--- CALENDAR ---
+
+GET /api/calendar
+  Returns lectures as calendar events
+  Teachers: lectures from their courses
+  Students: lectures from enrolled courses
+  Response: Array of { id, title, start, end, courseId, courseTitle, type, status, color }
+
+--- NOTIFICATIONS ---
+
+GET /api/notifications
+  Query: page, filter (all/unread)
+  Response: { notifications: [...], pagination: {...} }
+
+PATCH /api/notifications
+  Body: { notificationId, isRead: true }
+  Marks notification as read
+
+--- ADMIN ---
+
+PATCH /api/admin/teachers/[teacherId]
+  Body: { action: "approve" | "reject" }
+  Approve: sets isApproved=true, sends notification
+  Reject: sets role=STUDENT, sends notification
+
+--- LIVEKIT ---
+
+POST /api/livekit/token
+  Body: { lectureId }
+  Auth: enrolled student, course teacher, or admin
+  Returns: { token, roomName, isTeacher, liveSessionId }
+  Upserts LiveSession, increments participantsCount
+
+POST /api/livekit/session
+  Body: { lectureId }
+  Auth: Course teacher only
+  Starts live session: sets startedAt, lecture status -> LIVE
+
+PUT /api/livekit/session
+  Body: { lectureId }
+  Auth: Course teacher only
+  Ends live session: sets endedAt, lecture status -> COMPLETED
+
+PATCH /api/livekit/session
+  Body: { lectureId, participantId, canPublish }
+  Auth: Course teacher only
+  Updates participant permissions (grant/revoke speak access)
+
+POST /api/livekit/leave
+  Body: { lectureId }
+  Decrements participantsCount when a user leaves
+
+GET /api/livekit/chat?lectureId=xxx
+  Returns chat messages for the lecture's live session
+
+POST /api/livekit/chat
+  Body: { liveSessionId, content, type }
+  Persists a chat message
+
+================================================================================
+8. NAVIGATION STRUCTURE
+================================================================================
+
+SIDEBAR NAVIGATION (left side, collapsible, 288px wide)
+
+STUDENT:
+  - Dashboard        (/dashboard)         icon: LayoutDashboard
+  - Browse Courses   (/courses)           icon: BookOpen
+  - My Courses       (/my-courses)        icon: GraduationCap
+  - Cart             (/cart)              icon: ShoppingCart
+  - Calendar         (/calendar)          icon: Calendar
+
+TEACHER:
+  - Dashboard        (/dashboard)         icon: LayoutDashboard
+  - My Courses       (/teacher/courses)   icon: BookOpen
+  - Create Course    (/create-course)     icon: PlusCircle
+  - Schedule         (/schedule)          icon: Calendar
+  - Earnings         (/earnings)          icon: DollarSign
+
+ADMIN:
+  - Dashboard        (/dashboard)         icon: LayoutDashboard
+  - Teachers         (/admin/teachers)    icon: Users
+  - Courses          (/admin/courses)     icon: ClipboardList
+  - Transactions     (/admin/transactions) icon: DollarSign
+  - Reports          (/admin/reports)     icon: BarChart3
+
+SIDEBAR FEATURES:
+  - Collapsible (toggle button, collapses to 72px showing only icons)
+  - Logo: "Edutania" with MonitorPlay icon in green square
+  - Active item: highlighted with primary/15 bg, primary text, ring
+  - User section at bottom: avatar, name, role label, Sign out button
+  - Fixed position, full height
+
+HEADER (sticky top bar, 56px height)
+  - Left: Breadcrumb navigation (Platform > Page > Subpage), page title below
+  - Right: Theme toggle, Notification bell (with unread count), Account dropdown
+  - Account dropdown: user name, email, role badge, Profile link, Settings link, Sign out
+
+NOTIFICATION BELL:
+  - Bell icon with red dot for unread notifications
+  - Clicking navigates to /notifications
+
+================================================================================
+9. LIVE STREAMING FLOW
+================================================================================
+
+TECHNOLOGY: LiveKit (WebRTC-based)
+ROOM NAMING: "lecture-{lectureId}"
+
+TEACHER FLOW:
+1. Teacher navigates to /live/[lectureId]
+2. Server-side: validates auth, checks teacher owns the course
+3. LiveRoom component mounts, fetches token via POST /api/livekit/token
+4. Token returned with canPublish=true
+5. LiveKitRoom connects to LiveKit server
+6. Teacher sees "Start the session to begin broadcasting"
+7. Teacher clicks "Start Session":
+   a. POST /api/livekit/session (marks session started, lecture -> LIVE)
+   b. Camera enabled (permission prompt if first time)
+   c. Microphone enabled
+   d. UI shows: mic toggle, camera toggle, screen share toggle, End Session button
+8. Teacher can toggle mic/camera/screen share
+9. Teacher sees raised hands in sidebar -> can Allow (grants publish) or Dismiss
+10. Teacher clicks "End Session":
+    a. PUT /api/livekit/session (marks session ended, lecture -> COMPLETED)
+    b. Camera/mic disabled
+
+STUDENT FLOW:
+1. Student navigates to /live/[lectureId]
+2. Server-side: validates auth, checks enrollment (payment COMPLETED)
+3. Token fetched with canPublish=false (subscribe only)
+4. Student sees video from teacher's camera or screen share
+5. Student can chat via the chat panel (LiveKit data channel + REST persistence)
+6. Student can raise hand -> sends data message to room
+7. If teacher allows speaking:
+   a. Server grants canPublish permission
+   b. Student's mic is automatically enabled
+   c. Toast notification shown
+
+DATA CHANNELS (via LiveKit publishData):
+  - chat: { type: "chat", content, userName, messageType }
+  - hand-raise: { type: "hand-raise", participantId, participantName }
+  - hand-lower: { type: "hand-lower", participantId }
+  - hand-accepted: { type: "hand-accepted", participantId }
+  - hand-dismissed: { type: "hand-dismissed", participantId }
+
+CLEANUP:
+  - beforeunload sends beacon to /api/livekit/leave (decrements participant count)
+  - Component unmount disconnects room and notifies leave API
+
+================================================================================
+10. PAYMENT/CHECKOUT FLOW
+================================================================================
+
+1. Student browses /courses, finds a course
+2. On /courses/[courseId], clicks "Add to Cart"
+3. POST /api/cart with courseId
+4. Student navigates to /cart
+5. Cart shows items with prices, subtotal
+6. Student clicks "Proceed to Checkout"
+7. POST /api/checkout:
+   a. Validates cart items exist and courses are published
+   b. Creates Stripe Checkout Session with line items
+   c. Returns Stripe checkout URL
+8. Student redirected to Stripe Checkout page
+9. On successful payment:
+   a. Stripe sends webhook to POST /api/webhooks/stripe
+   b. Webhook handler:
+      - Verifies Stripe signature
+      - Finds the checkout session
+      - For each cart item:
+        - Creates Enrollment (paymentStatus: COMPLETED)
+        - Creates Transaction (amount, platformFee=15%, teacherEarning=85%)
+        - Updates TeacherEarning (totalEarned, pendingBalance)
+      - Clears student's cart
+   c. Student redirected to /cart/success
+10. On cancelled payment:
+    - Student redirected to /cart/cancel
+    - Cart items preserved
+
+PRICING:
+  - Course prices set by teacher (Decimal, 10,2)
+  - Platform fee: 15% of course price
+  - Teacher earning: 85% of course price
+  - Payout threshold: $50 minimum pending balance
+
+================================================================================
+11. ALL UI COMPONENTS
+================================================================================
+
+LAYOUT COMPONENTS:
+  - Sidebar (src/components/layout/sidebar.tsx) - collapsible nav sidebar
+  - Header (src/components/layout/header.tsx) - top bar with breadcrumbs
+  - NotificationBell (src/components/layout/notification-bell.tsx) - bell icon with badge
+
+COURSE COMPONENTS:
+  - CourseCard (src/components/course/course-card.tsx) - catalog card
+  - CourseFilters (src/components/course/course-filters.tsx) - sidebar filters
+  - CourseSortSelect (src/components/course/course-filters.tsx) - sort dropdown
+  - VideoPlayer (src/components/course/video-player.tsx) - HTML5 video for recordings
+
+DASHBOARD COMPONENTS:
+  - StatsCard (src/components/dashboard/stats-card.tsx) - metric card with icon
+  - EarningsChart (src/components/dashboard/earnings-chart.tsx) - Recharts bar chart
+
+LIVE COMPONENTS:
+  - LiveRoom (src/components/live/live-room.tsx) - main live session wrapper
+  - ChatPanel (src/components/live/chat-panel.tsx) - real-time chat
+  - RaiseHand (src/components/live/raise-hand.tsx) - hand raise/allow/dismiss
+
+SHADCN/UI PRIMITIVES (src/components/ui/):
+  - Avatar, AvatarImage, AvatarFallback
+  - Badge (variants: default, success, warning, destructive, outline, secondary)
+  - Button (variants: default, destructive, outline, secondary, ghost, link; sizes: default, sm, lg, icon)
+  - Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter
+  - Checkbox
+  - Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription
+  - DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator
+  - Input
+  - Label
+  - Popover, PopoverTrigger, PopoverContent
+  - Select, SelectTrigger, SelectValue, SelectContent, SelectItem
+  - Separator
+  - Skeleton
+  - Slider
+  - Sonner (Toaster) - toast notifications
+  - Table, TableHeader, TableBody, TableRow, TableHead, TableCell
+  - Tabs, TabsList, TabsTrigger, TabsContent
+  - ThemeToggle (src/components/ui/theme-toggle.tsx)
+
+PROVIDERS (src/components/providers.tsx):
+  - ThemeProvider (next-themes, default dark)
+  - SessionProvider (NextAuth)
+  - QueryClientProvider (React Query)
+
+================================================================================
+12. COLOR SCHEME & DESIGN TOKENS
+================================================================================
+
+LIGHT MODE:
+  --background:         220 14% 97%    (off-white, slight blue tint)
+  --foreground:         224 32% 10%    (near-black)
+  --card:               0 0% 100%      (pure white)
+  --card-foreground:    224 32% 10%
+  --popover:            0 0% 100%
+  --popover-foreground: 224 32% 10%
+  --primary:            152 63% 36%    (GREEN - emerald/forest green)
+  --primary-foreground: 0 0% 100%      (white)
+  --secondary:          220 13% 93%    (light gray)
+  --secondary-foreground: 224 20% 20%
+  --muted:              220 13% 93%
+  --muted-foreground:   220 9% 46%     (medium gray)
+  --accent:             220 13% 91%
+  --accent-foreground:  224 20% 20%
+  --destructive:        0 84% 60%      (red)
+  --destructive-foreground: 0 0% 100%
+  --border:             220 13% 88%
+  --input:              220 13% 90%
+  --ring:               152 63% 36%    (same green as primary)
+  --radius:             0.625rem       (10px)
+
+DARK MODE (DEFAULT - TryHackMe-inspired):
+  --background:         224 35% 7%     (very dark navy blue)
+  --foreground:         213 22% 88%    (light gray text)
+  --card:               224 32% 10%    (slightly lighter dark navy)
+  --card-foreground:    213 22% 88%
+  --popover:            224 30% 12%
+  --popover-foreground: 213 22% 88%
+  --primary:            152 65% 48%    (BRIGHT GREEN - key brand color)
+  --primary-foreground: 224 35% 7%     (dark navy)
+  --secondary:          224 26% 15%
+  --secondary-foreground: 213 22% 88%
+  --muted:              224 26% 14%
+  --muted-foreground:   215 14% 52%    (medium gray-blue)
+  --accent:             224 26% 17%
+  --accent-foreground:  213 22% 88%
+  --destructive:        0 72% 51%      (red)
+  --destructive-foreground: 0 0% 100%
+  --border:             224 22% 19%    (dark border)
+  --input:              224 26% 14%
+  --ring:               152 65% 48%    (bright green)
+
+ACCENT COLORS USED THROUGHOUT:
+  - Emerald/Green: primary actions, success states, teacher badge
+  - Sky/Blue: informational, student badge, secondary highlights
+  - Violet/Purple: creative elements, progress indicators
+  - Orange: warnings, assignment indicators
+  - Rose/Red: destructive actions, admin badge, errors
+  - Yellow/Amber: hand raise, ratings, caution states
+
+LIVE ROOM SPECIFIC COLORS:
+  - Background: #0a0f1a (very dark navy)
+  - Header/Controls: #0d1320 (slightly lighter navy)
+  - Video area: #0a0e17 (darkest)
+  - Borders: white/10 (10% white opacity)
+  - Text: white with various opacity levels (white, white/80, white/50, white/30, white/25)
+  - Active mic/camera: bg-white/10, text-white
+  - Muted mic/camera: bg-red-500/20, text-red-400
+  - Screen sharing: bg-emerald-500/20, text-emerald-400
+  - LIVE badge: destructive variant with animate-pulse
+
+FONT: Inter (Google Fonts)
+  - Default: 14px
+  - Headings: font-bold tracking-tight
+  - Stats numbers: text-3xl font-bold
+  - Page titles: text-2xl font-bold tracking-tight
+  - Breadcrumbs: text-xs
+  - Badges: text-xs font-medium
+
+================================================================================
+13. USER JOURNEYS
+================================================================================
+
+STUDENT JOURNEY:
+1. Visits landing page (/) -> clicks "Start learning" or "Get started"
+2. Registers at /register as Student -> auto-approved -> redirects to /dashboard
+3. Dashboard shows overview stats and upcoming lectures
+4. Browses courses at /courses -> filters by subject, grade, price
+5. Views course detail at /courses/[id] -> reviews curriculum, teacher info
+6. Adds course to cart -> navigates to /cart
+7. Proceeds to checkout -> Stripe payment -> success -> enrolled
+8. Views enrolled courses at /my-courses
+9. Watches recorded lectures at /courses/[id]/watch/[lectureId]
+10. Checks calendar at /calendar for upcoming live sessions
+11. Joins live session at /live/[lectureId]
+12. During live: watches teacher, chats, raises hand to speak
+13. After session: can watch recording if available
+14. Manages profile at /profile, settings at /settings
+15. Views notifications at /notifications
+
+TEACHER JOURNEY:
+1. Registers at /register as Teacher -> redirected to /pending-approval
+2. Waits for admin approval -> receives notification when approved
+3. After approval: accesses full teacher dashboard at /dashboard
+4. Creates course at /create-course: title, description, thumbnail, pricing
+5. Adds lectures: LIVE (with scheduled date) or RECORDED (with video upload)
+6. Uploads resources (PDFs, documents)
+7. Publishes course (changes status to PUBLISHED)
+8. Views course management at /teacher/courses
+9. Checks schedule at /schedule (FullCalendar view)
+10. When live lecture time comes: navigates to /live/[lectureId]
+11. Starts session -> camera + mic enabled -> teaches
+12. Manages student hands: allows speaking or dismisses
+13. Ends session -> lecture marked as COMPLETED
+14. Tracks earnings at /earnings -> views charts, transaction history
+15. Requests payout when balance >= $50
+
+ADMIN JOURNEY:
+1. Logs in with admin credentials
+2. Views admin dashboard with platform-wide metrics
+3. Reviews teacher applications at /admin/teachers -> approves or rejects
+4. Monitors courses at /admin/courses -> can view any course
+5. Reviews transactions at /admin/transactions
+6. Views financial reports at /admin/reports -> revenue charts, breakdowns
+7. Can join any live session as an admin viewer
+
+================================================================================
+14. FEATURE LIST (EXISTING + PLANNED)
+================================================================================
+
+EXISTING FEATURES:
+  [x] User registration (Student/Teacher)
+  [x] Email/password authentication with JWT sessions
+  [x] Teacher approval workflow
+  [x] Course CRUD (create, read, update, delete)
+  [x] Lecture management (LIVE + RECORDED types)
+  [x] Video upload and streaming for recorded content
+  [x] Resource/file management with uploads
+  [x] Course catalog with search, filters, sorting, pagination
+  [x] Cart-based Stripe checkout
+  [x] Enrollment system with payment verification
+  [x] Teacher earnings tracking with 85/15 split
+  [x] LiveKit-based live video sessions
+  [x] Real-time chat during live sessions
+  [x] Raise hand / allow to speak system
+  [x] Screen sharing for teachers
+  [x] Role-based dashboards with stat cards
+  [x] FullCalendar integration for scheduling
+  [x] Notification system
+  [x] Profile and settings management
+  [x] Dark/light theme toggle
+  [x] Admin teacher approval/rejection
+  [x] Admin course and transaction monitoring
+  [x] Admin revenue reports with charts
+  [x] Responsive sidebar navigation (collapsible)
+  [x] Breadcrumb navigation
+
+PLANNED FEATURES (Zoom-like enhancements):
+  Phase 1 - Core Classroom Interaction:
+  [ ] Live Quizzes / Polls
+      - Teacher creates multiple choice, true/false, or short answer questions
+      - Quiz modal overlay for students during live session
+      - Real-time response tracking with live bar charts
+      - Results sharing with the class
+  [ ] Floating Emoji Reactions
+      - Animated emojis floating over video area
+      - Reaction buttons: thumbs up, clap, heart, laugh, etc.
+      - Auto-expire after 3 seconds
+  [ ] Session Timer / Countdown
+      - Teacher-controlled countdown visible to all participants
+      - Useful for quizzes, breaks, timed activities
+
+  Phase 2 - Whiteboard & Annotation:
+  [ ] Collaborative Whiteboard
+      - Integrated drawing board (tldraw or Excalidraw)
+      - Toggle between video and whiteboard views
+      - Permission-based: teacher draws, can grant student access
+      - Tools: pen, shapes, text, eraser, colors, undo/redo
+      - Export whiteboard as image
+  [ ] Screen Annotation
+      - Drawing overlay on shared screen
+      - Highlight, circle, arrow, text tools
+
+  Phase 3 - Advanced Video & Room:
+  [ ] Gallery View
+      - Grid layout showing all participant cameras
+      - Toggle between speaker view and gallery view
+      - Active speaker highlighting
+  [ ] Waiting Room
+      - Students wait before being admitted by teacher
+      - Teacher sees pending list with admit/deny buttons
+  [ ] Virtual Backgrounds
+      - Blur, custom image backgrounds
+      - Settings panel for selection
+
+  Phase 4 - Content & Accessibility:
+  [ ] File Sharing in Chat
+      - Drag-and-drop file attachments in chat
+      - Preview cards for images, download links for documents
+  [ ] Cloud Recording
+      - Server-side recording via LiveKit Egress API
+      - Start/stop recording button for teacher
+      - Auto-link recording to lecture
+  [ ] Breakout Rooms
+      - Teacher creates sub-groups
+      - Students assigned to separate LiveKit rooms
+      - Timer-based auto-return
+      - Teacher can visit and broadcast to all rooms
+  [ ] Closed Captions / Live Transcription
+      - Speech-to-text overlay during live sessions
+      - Per-user toggle
+      - Optional transcript saving
+
+================================================================================
+15. FILE STORAGE & MEDIA
+================================================================================
+
+STORAGE PATH: ./storage (configurable via STORAGE_PATH env var)
+
+Directory structure:
+  storage/
+  ├── thumbnails/    (course thumbnail images - publicly accessible)
+  ├── videos/        (recorded lecture videos - authenticated access)
+  ├── resources/     (course resource files - authenticated access)
+  └── avatars/       (user profile images)
+
+Upload flow:
+  1. Client uses react-dropzone for drag-and-drop
+  2. FormData sent to POST /api/upload
+  3. Server validates file type, size, auth
+  4. File saved to storage/{category}/{unique-name}.{ext}
+  5. Relative path returned and stored in database
+
+File serving:
+  - GET /api/files/[...path] serves files from storage directory
+  - Thumbnails: no auth required (public)
+  - Other files: session auth required
+
+Video streaming:
+  - GET /api/stream/[videoId] provides range-based HTTP streaming
+  - Requires enrollment, ownership, or admin role
+  - Uses HTML5 video element with video.js player
+
+Supported formats:
+  - Images: jpg, jpeg, png, gif, webp (max 5MB)
+  - Videos: mp4, webm (max 500MB)
+  - Documents: pdf, doc, docx, ppt, pptx, xls, xlsx (max 50MB)
+
+================================================================================
+16. ENVIRONMENT VARIABLES
+================================================================================
+
+DATABASE_URL                    PostgreSQL connection string
+NEXTAUTH_SECRET                 Secret for JWT signing
+NEXTAUTH_URL                    Base URL (http://localhost:3000)
+STRIPE_SECRET_KEY               Stripe server-side key
+STRIPE_PUBLISHABLE_KEY          Stripe client-side key
+STRIPE_WEBHOOK_SECRET           Stripe webhook verification
+LIVEKIT_API_KEY                 LiveKit server auth key
+LIVEKIT_API_SECRET              LiveKit server auth secret
+LIVEKIT_URL                     LiveKit server URL (ws://localhost:7880)
+NEXT_PUBLIC_LIVEKIT_URL         LiveKit URL for client (same as above for dev)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY  Stripe public key for client
+NEXT_PUBLIC_APP_URL             App base URL for client
+STORAGE_PATH                    Local file storage directory (./storage)
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================

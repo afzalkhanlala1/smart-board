@@ -143,19 +143,17 @@ export default function CartPage() {
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="mb-6 rounded-full bg-muted p-6">
-          <ShoppingCart className="h-12 w-12 text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="h-20 w-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+          <ShoppingCart className="h-10 w-10 text-muted-foreground/40" />
         </div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">
-          Your cart is empty
-        </h2>
-        <p className="mt-2 text-muted-foreground">
+        <h3 className="font-bold text-lg">Your cart is empty</h3>
+        <p className="text-sm text-muted-foreground mt-1">
           Browse our course catalog and find something to learn!
         </p>
-        <Button asChild className="mt-6">
+        <Button asChild className="mt-4 gap-2">
           <Link href="/courses">
-            <BookOpen className="mr-2 h-4 w-4" />
+            <BookOpen className="h-4 w-4" />
             Browse Courses
           </Link>
         </Button>
@@ -166,10 +164,10 @@ export default function CartPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">
+        <h1 className="text-3xl font-black tracking-tight">
           Shopping Cart
-        </h2>
-        <p className="text-muted-foreground">
+        </h1>
+        <p className="text-muted-foreground text-sm mt-1">
           {items.length} {items.length === 1 ? "course" : "courses"} in your
           cart
         </p>

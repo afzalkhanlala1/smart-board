@@ -19,6 +19,7 @@ import {
   LogOut,
   ChevronLeft,
   MonitorPlay,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ const studentNav: NavItem[] = [
   { href: "/my-courses", label: "My Courses", icon: GraduationCap },
   { href: "/cart", label: "Cart", icon: ShoppingCart },
   { href: "/calendar", label: "Calendar", icon: Calendar },
+  { href: "/live", label: "Live Sessions", icon: Video },
 ];
 
 const teacherNav: NavItem[] = [
@@ -40,6 +42,7 @@ const teacherNav: NavItem[] = [
   { href: "/create-course", label: "Create Course", icon: PlusCircle },
   { href: "/schedule", label: "Schedule", icon: Calendar },
   { href: "/earnings", label: "Earnings", icon: DollarSign },
+  { href: "/live", label: "Live Sessions", icon: Video },
 ];
 
 const adminNav: NavItem[] = [
@@ -48,6 +51,7 @@ const adminNav: NavItem[] = [
   { href: "/admin/courses", label: "Courses", icon: ClipboardList },
   { href: "/admin/transactions", label: "Transactions", icon: DollarSign },
   { href: "/admin/reports", label: "Reports", icon: BarChart3 },
+  { href: "/live", label: "Live Sessions", icon: Video },
 ];
 
 function navForRole(role: string | undefined): NavItem[] {

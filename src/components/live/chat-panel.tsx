@@ -3,16 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRoomContext } from "@livekit/components-react";
 import { DataPacket_Kind, RoomEvent } from "livekit-client";
-import { Send, MessageSquare } from "lucide-react";
+import { Send, MessageSquare, Paperclip, FileText, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface ChatMessage {
   id: string;
   userId: string;
   userName: string;
   content: string;
-  type: "TEXT" | "SYSTEM" | "HAND_RAISE";
+  type: "TEXT" | "SYSTEM" | "HAND_RAISE" | "FILE";
   createdAt: string;
+  fileName?: string;
+  fileUrl?: string;
 }
 
 interface ChatPanelProps {
@@ -35,8 +38,10 @@ export function ChatPanel({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -96,6 +101,8 @@ export function ChatPanel({
             content: data.content,
             type: data.messageType || "TEXT",
             createdAt: new Date().toISOString(),
+            fileName: data.fileName,
+            fileUrl: data.fileUrl,
           };
           setMessages((prev) => [...prev, msg]);
         }
@@ -151,7 +158,9 @@ export function ChatPanel({
               content: trimmed,
               type: "TEXT",
             }),
-          }).catch(() => {});
+          }).catch((err) => {
+            console.error("Failed to persist chat message:", err);
+          });
         }
       } catch (err) {
         console.error("Failed to send message:", err);
@@ -160,6 +169,79 @@ export function ChatPanel({
       }
     },
     [input, isSending, userId, userName, room, liveSessionId]
+  );
+
+  const handleFileUpload = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("File size must be under 10MB");
+        return;
+      }
+
+      setIsUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadRes.ok) throw new Error("Upload failed");
+
+        const { path: filePath } = await uploadRes.json();
+        const fileUrl = `/api/files/${filePath}`;
+
+        const localMsg: ChatMessage = {
+          id: `local-${Date.now()}`,
+          userId,
+          userName,
+          content: file.name,
+          type: "FILE",
+          createdAt: new Date().toISOString(),
+          fileName: file.name,
+          fileUrl,
+        };
+        setMessages((prev) => [...prev, localMsg]);
+
+        const payload = encoder.encode(
+          JSON.stringify({
+            type: "chat",
+            content: file.name,
+            userName,
+            messageType: "FILE",
+            fileName: file.name,
+            fileUrl,
+          })
+        );
+        await room.localParticipant.publishData(payload, { reliable: true });
+
+        if (liveSessionId) {
+          fetch("/api/livekit/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              liveSessionId,
+              content: JSON.stringify({ fileName: file.name, fileUrl }),
+              type: "FILE",
+            }),
+          }).catch((err) => {
+            console.error("Failed to persist file message:", err);
+          });
+        }
+
+        toast.success("File shared");
+      } catch {
+        toast.error("Failed to upload file");
+      } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [userId, userName, room, liveSessionId]
   );
 
   const formatTime = (dateStr: string) => {
@@ -217,9 +299,24 @@ export function ChatPanel({
                     {formatTime(msg.createdAt)}
                   </span>
                 </div>
-                <p className="text-sm text-white/80 break-words">
-                  {msg.content}
-                </p>
+                {msg.type === "FILE" && msg.fileUrl ? (
+                  <a
+                    href={msg.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/70 hover:bg-white/10 transition-colors"
+                  >
+                    <FileText className="h-4 w-4 text-sky-400 shrink-0" />
+                    <span className="flex-1 truncate">
+                      {msg.fileName || msg.content}
+                    </span>
+                    <Download className="h-3.5 w-3.5 text-white/40 shrink-0" />
+                  </a>
+                ) : (
+                  <p className="text-sm text-white/80 break-words">
+                    {msg.content}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -231,6 +328,22 @@ export function ChatPanel({
         onSubmit={sendMessage}
         className="flex gap-2 border-t border-white/10 px-3 py-2.5"
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={handleFileUpload}
+          accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp,.mp4,.webm"
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className="inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-lg text-white/40 hover:text-white hover:bg-white/10 disabled:opacity-40 transition-colors"
+          title="Share file"
+        >
+          <Paperclip className="h-4 w-4" />
+        </button>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}

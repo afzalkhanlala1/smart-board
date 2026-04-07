@@ -41,6 +41,19 @@ enum MessageType {
   TEXT
   SYSTEM
   HAND_RAISE
+  FILE
+}
+
+enum QuizStatus {
+  DRAFT
+  ACTIVE
+  ENDED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SHORT_ANSWER
 }
 
 enum NotificationType {
@@ -138,6 +151,7 @@ model LiveSession {
 
   lecture      Lecture       @relation(fields: [lectureId], references: [id], onDelete: Cascade)
   chatMessages ChatMessage[]
+  quizzes      Quiz[]
 
   @@index([livekitRoom])
 }
@@ -233,6 +247,52 @@ model ChatMessage {
 
   @@index([liveSessionId])
   @@index([createdAt])
+}
+
+model Quiz {
+  id            String     @id @default(cuid())
+  liveSessionId String
+  title         String
+  status        QuizStatus @default(DRAFT)
+  createdAt     DateTime   @default(now())
+
+  liveSession LiveSession    @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  questions   QuizQuestion[]
+  responses   QuizResponse[]
+
+  @@index([liveSessionId])
+}
+
+model QuizQuestion {
+  id           String       @id @default(cuid())
+  quizId       String
+  question     String
+  type         QuestionType
+  options      Json         @default("[]")
+  correctAnswer String?
+  sortOrder    Int          @default(0)
+
+  quiz      Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  responses QuizResponse[]
+
+  @@index([quizId])
+}
+
+model QuizResponse {
+  id         String   @id @default(cuid())
+  quizId     String
+  questionId String
+  userId     String
+  answer     String
+  isCorrect  Boolean?
+  createdAt  DateTime @default(now())
+
+  quiz     Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, userId])
+  @@index([quizId])
+  @@index([userId])
 }
 
 model Notification {

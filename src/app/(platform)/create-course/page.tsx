@@ -264,7 +264,7 @@ function CreateCoursePage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="text-3xl font-black tracking-tight">
             {isEditing ? "Edit Course" : "Create New Course"}
           </h1>
           <p className="text-muted-foreground text-sm">

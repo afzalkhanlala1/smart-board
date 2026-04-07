@@ -22,6 +22,9 @@ import {
   Radio,
   Loader2,
   ArrowLeft,
+  LayoutGrid,
+  Pencil,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -29,10 +32,22 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChatPanel } from "@/components/live/chat-panel";
 import { RaiseHand } from "@/components/live/raise-hand";
+import { QuizPanel } from "@/components/live/quiz-panel";
+import { ReactionsOverlay, ReactionsBar } from "@/components/live/reactions";
+import { SessionTimer } from "@/components/live/session-timer";
+import { Whiteboard, WhiteboardToggle } from "@/components/live/whiteboard";
+import { ScreenAnnotation } from "@/components/live/screen-annotation";
+import { GalleryView } from "@/components/live/gallery-view";
+import { WaitingRoom } from "@/components/live/waiting-room";
+import { VirtualBackground } from "@/components/live/virtual-background";
+import { RecordButton } from "@/components/live/record-button";
+import { BreakoutRooms } from "@/components/live/breakout-rooms";
+import { CaptionsOverlay, CaptionsToggle } from "@/components/live/captions";
 import { toast } from "sonner";
 
 interface LiveRoomProps {
   lectureId: string;
+  courseId: string;
   roomName: string;
   userName: string;
   userId: string;
@@ -44,6 +59,7 @@ interface LiveRoomProps {
 
 export function LiveRoom({
   lectureId,
+  courseId,
   roomName,
   userName,
   userId,
@@ -123,6 +139,7 @@ export function LiveRoom({
     >
       <RoomContent
         lectureId={lectureId}
+        courseId={courseId}
         roomName={roomName}
         userName={userName}
         userId={userId}
@@ -137,6 +154,7 @@ export function LiveRoom({
 
 interface RoomContentProps {
   lectureId: string;
+  courseId: string;
   roomName: string;
   userName: string;
   userId: string;
@@ -148,6 +166,7 @@ interface RoomContentProps {
 
 function RoomContent({
   lectureId,
+  courseId,
   roomName,
   userName,
   userId,
@@ -165,6 +184,12 @@ function RoomContent({
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [isEnding, setIsEnding] = useState(false);
+  const [whiteboardOpen, setWhiteboardOpen] = useState(false);
+  const [annotationOpen, setAnnotationOpen] = useState(false);
+  const [galleryView, setGalleryView] = useState(false);
+  const [waitingRoomEnabled] = useState(false);
+  const [showVirtualBg, setShowVirtualBg] = useState(false);
+  const [captionsEnabled, setCaptionsEnabled] = useState(false);
 
   const tracks = useTracks(
     [
@@ -212,10 +237,18 @@ function RoomContent({
       setSessionActive(true);
       toast.success("Live session started");
 
-      await localParticipant.setCameraEnabled(true);
-      await localParticipant.setMicrophoneEnabled(true);
-      setIsCameraOff(false);
-      setIsMuted(false);
+      try {
+        await localParticipant.setCameraEnabled(true);
+        setIsCameraOff(false);
+      } catch {
+        toast.error("Could not enable camera. Please check browser permissions.");
+      }
+      try {
+        await localParticipant.setMicrophoneEnabled(true);
+        setIsMuted(false);
+      } catch {
+        toast.error("Could not enable microphone. Please check browser permissions.");
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to start");
     } finally {
@@ -251,18 +284,40 @@ function RoomContent({
   }, [lectureId, localParticipant]);
 
   const toggleMic = useCallback(async () => {
-    await localParticipant.setMicrophoneEnabled(isMuted);
-    setIsMuted(!isMuted);
+    try {
+      await localParticipant.setMicrophoneEnabled(isMuted);
+      setIsMuted(!isMuted);
+    } catch {
+      toast.error(
+        isMuted
+          ? "Could not enable microphone. Please allow microphone access in your browser settings."
+          : "Could not disable microphone."
+      );
+    }
   }, [localParticipant, isMuted]);
 
   const toggleCamera = useCallback(async () => {
-    await localParticipant.setCameraEnabled(isCameraOff);
-    setIsCameraOff(!isCameraOff);
+    try {
+      await localParticipant.setCameraEnabled(isCameraOff);
+      setIsCameraOff(!isCameraOff);
+    } catch {
+      toast.error(
+        isCameraOff
+          ? "Could not enable camera. Please allow camera access in your browser settings."
+          : "Could not disable camera."
+      );
+    }
   }, [localParticipant, isCameraOff]);
 
   const toggleScreenShare = useCallback(async () => {
-    await localParticipant.setScreenShareEnabled(!isScreenSharing);
-    setIsScreenSharing(!isScreenSharing);
+    try {
+      await localParticipant.setScreenShareEnabled(!isScreenSharing);
+      setIsScreenSharing(!isScreenSharing);
+    } catch {
+      if (!isScreenSharing) {
+        toast.error("Screen sharing was cancelled or denied.");
+      }
+    }
   }, [localParticipant, isScreenSharing]);
 
   useEffect(() => {
@@ -282,6 +337,31 @@ function RoomContent({
     };
   }, [room, localParticipant]);
 
+  useEffect(() => {
+    const notifyLeave = () => {
+      navigator.sendBeacon(
+        "/api/livekit/leave",
+        new Blob(
+          [JSON.stringify({ lectureId })],
+          { type: "application/json" }
+        )
+      );
+    };
+
+    const handleBeforeUnload = () => {
+      notifyLeave();
+      room.disconnect();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      notifyLeave();
+      room.disconnect();
+    };
+  }, [room, lectureId]);
+
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col bg-[#0a0f1a]">
       {/* Header */}
@@ -293,7 +373,7 @@ function RoomContent({
             className="text-white/50 hover:text-white hover:bg-white/10"
             asChild
           >
-            <Link href={`/courses/${lectureId}`}>
+            <Link href={`/courses/${courseId}`}>
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -305,6 +385,7 @@ function RoomContent({
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <SessionTimer isTeacher={isTeacher} />
           {sessionActive && (
             <Badge variant="destructive" className="animate-pulse gap-1.5">
               <Radio className="h-3 w-3" />
@@ -323,27 +404,57 @@ function RoomContent({
         {/* Video area */}
         <div className="flex flex-1 flex-col">
           <div className="relative flex flex-1 items-center justify-center bg-[#0a0e17]">
-            {primaryTrack && primaryTrack.publication ? (
-              <VideoTrack
-                trackRef={primaryTrack as any}
-                className="h-full w-full object-contain"
+            <ReactionsOverlay userId={userId} />
+            <GalleryView isActive={galleryView} />
+            <Whiteboard
+              isTeacher={isTeacher}
+              userId={userId}
+              isVisible={whiteboardOpen}
+              onClose={() => setWhiteboardOpen(false)}
+            />
+            <ScreenAnnotation
+              isTeacher={isTeacher}
+              userId={userId}
+              isActive={annotationOpen}
+              onClose={() => setAnnotationOpen(false)}
+            />
+            <CaptionsOverlay isVisible={captionsEnabled} />
+            {waitingRoomEnabled && (
+              <WaitingRoom
+                lectureId={lectureId}
+                userId={userId}
+                userName={userName}
+                isTeacher={isTeacher}
+                onAdmitted={() => {}}
               />
-            ) : (
-              <div className="flex flex-col items-center gap-4 text-white/30">
-                <Video className="h-16 w-16" />
-                <p className="text-lg">
-                  {isTeacher
-                    ? sessionActive
-                      ? "Your camera is off"
-                      : "Start the session to begin broadcasting"
-                    : "Waiting for the teacher to start..."}
-                </p>
-              </div>
+            )}
+            {!galleryView && (
+              primaryTrack && primaryTrack.publication ? (
+                <VideoTrack
+                  trackRef={primaryTrack as any}
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-4 text-white/30">
+                  <Video className="h-16 w-16" />
+                  <p className="text-lg">
+                    {isTeacher
+                      ? sessionActive
+                        ? "Your camera is off"
+                        : "Start the session to begin broadcasting"
+                      : "Waiting for the teacher to start..."}
+                  </p>
+                </div>
+              )
             )}
           </div>
 
           {/* Controls bar */}
-          <div className="flex items-center justify-center gap-3 border-t border-white/10 bg-[#0d1320] px-4 py-3">
+          <div className="relative flex items-center justify-center gap-3 border-t border-white/10 bg-[#0d1320] px-4 py-3">
+            <VirtualBackground
+              isVisible={showVirtualBg}
+              onClose={() => setShowVirtualBg(false)}
+            />
             {isTeacher ? (
               <>
                 {!sessionActive ? (
@@ -395,6 +506,18 @@ function RoomContent({
                     </button>
                     <button
                       type="button"
+                      onClick={() => setShowVirtualBg(!showVirtualBg)}
+                      className={`inline-flex items-center justify-center h-10 w-10 rounded-full transition-colors ${
+                        showVirtualBg
+                          ? "bg-pink-500/20 text-pink-400 ring-1 ring-pink-500/50 hover:bg-pink-500/30"
+                          : "bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20"
+                      }`}
+                      aria-label="Virtual background"
+                    >
+                      <Sparkles className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={toggleScreenShare}
                       className={`inline-flex items-center justify-center h-10 w-10 rounded-full transition-colors ${
                         isScreenSharing
@@ -405,6 +528,39 @@ function RoomContent({
                     >
                       <MonitorUp className="h-5 w-5" />
                     </button>
+                    <WhiteboardToggle
+                      isActive={whiteboardOpen}
+                      onToggle={() => setWhiteboardOpen(!whiteboardOpen)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setAnnotationOpen(!annotationOpen)}
+                      className={`inline-flex items-center justify-center h-10 w-10 rounded-full transition-colors ${
+                        annotationOpen
+                          ? "bg-orange-500/20 text-orange-400 ring-1 ring-orange-500/50 hover:bg-orange-500/30"
+                          : "bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20"
+                      }`}
+                      aria-label={annotationOpen ? "Close annotations" : "Annotate screen"}
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGalleryView(!galleryView)}
+                      className={`inline-flex items-center justify-center h-10 w-10 rounded-full transition-colors ${
+                        galleryView
+                          ? "bg-sky-500/20 text-sky-400 ring-1 ring-sky-500/50 hover:bg-sky-500/30"
+                          : "bg-white/10 text-white ring-1 ring-white/20 hover:bg-white/20"
+                      }`}
+                      aria-label={galleryView ? "Speaker view" : "Gallery view"}
+                    >
+                      <LayoutGrid className="h-5 w-5" />
+                    </button>
+                    <RecordButton lectureId={lectureId} />
+                    <CaptionsToggle
+                      isActive={captionsEnabled}
+                      onToggle={() => setCaptionsEnabled(!captionsEnabled)}
+                    />
                     <div className="mx-2 h-6 w-px bg-white/10" />
                     <Button
                       variant="destructive"
@@ -423,18 +579,38 @@ function RoomContent({
                 )}
               </>
             ) : (
-              <RaiseHand
-                lectureId={lectureId}
-                userId={userId}
-                userName={userName}
-                isTeacher={false}
-              />
+              <div className="flex items-center gap-3">
+                <RaiseHand
+                  lectureId={lectureId}
+                  userId={userId}
+                  userName={userName}
+                  isTeacher={false}
+                />
+                <div className="mx-1 h-6 w-px bg-white/10" />
+                <ReactionsBar userId={userId} />
+                <div className="mx-1 h-6 w-px bg-white/10" />
+                <CaptionsToggle
+                  isActive={captionsEnabled}
+                  onToggle={() => setCaptionsEnabled(!captionsEnabled)}
+                />
+              </div>
             )}
           </div>
         </div>
 
-        {/* Right sidebar: Chat + Raise Hand (teacher) */}
+        {/* Right sidebar: Quiz + Breakout + Raise Hand (teacher) + Chat */}
         <div className="flex w-80 flex-col border-l border-white/10 bg-[#0d1320] lg:w-96">
+          <QuizPanel
+            lectureId={lectureId}
+            liveSessionId={liveSessionId}
+            userId={userId}
+            isTeacher={isTeacher}
+          />
+          <BreakoutRooms
+            lectureId={lectureId}
+            userId={userId}
+            isTeacher={isTeacher}
+          />
           {isTeacher && (
             <RaiseHand
               lectureId={lectureId}
