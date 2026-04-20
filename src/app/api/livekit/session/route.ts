@@ -13,15 +13,22 @@ function getRoomService() {
   return new RoomServiceClient(LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET);
 }
 
-async function verifyTeacher(lectureId: string, userId: string) {
+async function verifyTeacher(
+  lectureId: string,
+  userId: string,
+  role?: string
+) {
   const lecture = await db.lecture.findUnique({
     where: { id: lectureId },
     include: { course: { select: { teacherId: true } } },
   });
 
   if (!lecture) return { error: "Lecture not found", status: 404 } as const;
-  if (lecture.course.teacherId !== userId) {
-    return { error: "Only the course teacher can manage sessions", status: 403 } as const;
+  if (lecture.course.teacherId !== userId && role !== "ADMIN") {
+    return {
+      error: "Only the course teacher can manage sessions",
+      status: 403,
+    } as const;
   }
 
   return { lecture } as const;
@@ -41,7 +48,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { lectureId } = sessionSchema.parse(body);
 
-    const result = await verifyTeacher(lectureId, session.user.id);
+    const result = await verifyTeacher(
+      lectureId,
+      session.user.id,
+      session.user.role
+    );
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
@@ -89,7 +100,11 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { lectureId } = sessionSchema.parse(body);
 
-    const result = await verifyTeacher(lectureId, session.user.id);
+    const result = await verifyTeacher(
+      lectureId,
+      session.user.id,
+      session.user.role
+    );
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
@@ -151,7 +166,11 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const { lectureId, participantId, canPublish } = permissionSchema.parse(body);
 
-    const result = await verifyTeacher(lectureId, session.user.id);
+    const result = await verifyTeacher(
+      lectureId,
+      session.user.id,
+      session.user.role
+    );
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

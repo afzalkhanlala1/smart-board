@@ -10,8 +10,6 @@ import {
   Loader2,
   Save,
   Send,
-  Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -147,13 +145,16 @@ function CreateCoursePage() {
 
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("path", `thumbnails/${Date.now()}-${file.name}`);
+        formData.append("kind", "thumbnail");
 
         const res = await fetch("/api/upload", { method: "POST", body: formData });
-        if (!res.ok) throw new Error("Upload failed");
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.error || "Upload failed");
+        }
 
         const data = await res.json();
-        setForm((prev) => ({ ...prev, thumbnail: data.filePath }));
+        setForm((prev) => ({ ...prev, thumbnail: data.url }));
         toast.success("Thumbnail uploaded");
       } catch {
         setThumbnailPreview(form.thumbnail ? getStorageUrl(form.thumbnail) : null);
@@ -264,7 +265,7 @@ function CreateCoursePage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="text-3xl font-black tracking-tight">
             {isEditing ? "Edit Course" : "Create New Course"}
           </h1>
           <p className="text-muted-foreground text-sm">

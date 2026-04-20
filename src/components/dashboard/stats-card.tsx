@@ -1,6 +1,4 @@
 import { type LucideIcon } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 
 interface StatsCardProps {
   title: string;
@@ -10,6 +8,8 @@ interface StatsCardProps {
   trend?: { value: number; isPositive: boolean };
 }
 
+const iconColors: Record<string, { gradient: string; accent: string }> = {};
+
 export function StatsCard({
   title,
   value,
@@ -18,25 +18,17 @@ export function StatsCard({
   trend,
 }: StatsCardProps) {
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          {Icon && (
-            <div className="rounded-lg bg-primary/10 p-2">
-              <Icon className="h-4 w-4 text-primary" />
-            </div>
-          )}
-        </div>
-        <div className="mt-2">
-          <p className="text-3xl font-bold tracking-tight">{value}</p>
+    <div className="relative rounded-2xl border border-border bg-gradient-to-br from-card to-card/80 p-5 overflow-hidden">
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="text-xs text-muted-foreground">{title}</p>
+          <p className="text-3xl font-black mt-1">{value}</p>
           <div className="mt-1 flex items-center gap-2">
             {trend && (
               <span
-                className={cn(
-                  "text-xs font-medium",
-                  trend.isPositive ? "text-green-600" : "text-red-600"
-                )}
+                className={`text-xs font-medium ${
+                  trend.isPositive ? "text-emerald-400" : "text-rose-400"
+                }`}
               >
                 {trend.isPositive ? "+" : ""}
                 {trend.value}%
@@ -47,7 +39,8 @@ export function StatsCard({
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+        {Icon && <Icon className="h-5 w-5 text-primary" />}
+      </div>
+    </div>
   );
 }

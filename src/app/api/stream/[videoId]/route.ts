@@ -51,7 +51,7 @@ export async function GET(
         },
       });
 
-      if (!enrollment) {
+      if (!enrollment || enrollment.paymentStatus !== "COMPLETED") {
         return new Response("Not enrolled in this course", { status: 403 });
       }
     }

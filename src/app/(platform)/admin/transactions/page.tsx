@@ -93,7 +93,7 @@ export default async function AdminTransactionsPage({
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Transactions</h1>
+        <h1 className="text-3xl font-black tracking-tight">Transactions</h1>
         <p className="text-muted-foreground">
           Complete transaction history across the platform.
         </p>

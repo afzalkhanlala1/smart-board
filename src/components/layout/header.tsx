@@ -34,6 +34,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   reports: "Reports",
   profile: "Profile",
   settings: "Settings",
+  live: "Live Sessions",
+  notifications: "Notifications",
 };
 
 const ROLE_COLOR: Record<string, string> = {

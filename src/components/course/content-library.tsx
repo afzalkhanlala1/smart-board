@@ -124,6 +124,19 @@ export function ContentLibrary({
       return;
     }
 
+    if (form.type === "LIVE" && !form.scheduledAt) {
+      toast.error("Live lectures need a scheduled date");
+      return;
+    }
+
+    // <input type="datetime-local"> returns `YYYY-MM-DDTHH:mm` without a
+    // timezone. The API's Zod schema uses `.datetime()`, which requires a
+    // full ISO string, so convert via the browser.
+    const scheduledAtIso = form.scheduledAt
+      ? new Date(form.scheduledAt).toISOString()
+      : undefined;
+    const durationNum = form.duration ? parseInt(form.duration, 10) : undefined;
+
     setCreating(true);
     try {
       const res = await fetch(`/api/courses/${courseId}/lectures`, {
@@ -133,8 +146,9 @@ export function ContentLibrary({
           title: form.title,
           description: form.description || undefined,
           type: form.type,
-          scheduledAt: form.scheduledAt || undefined,
-          duration: form.duration ? parseInt(form.duration) : undefined,
+          scheduledAt: scheduledAtIso,
+          duration:
+            durationNum && durationNum > 0 ? durationNum : undefined,
         }),
       });
 
@@ -206,17 +220,6 @@ export function ContentLibrary({
         <h2 className="text-xl font-semibold">Course Content</h2>
         {isTeacher && (
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setUploadLectureId(null);
-                setShowUploadDialog(true);
-              }}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Upload File
-            </Button>
             <Button size="sm" onClick={() => setShowAddDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Add Lecture

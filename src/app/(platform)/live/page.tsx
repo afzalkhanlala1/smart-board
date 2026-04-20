@@ -53,8 +53,8 @@ export default async function LiveIndexPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Live Sessions</h1>
-        <p className="text-muted-foreground">
+        <h1 className="text-3xl font-black tracking-tight">Live Sessions</h1>
+        <p className="text-muted-foreground text-sm mt-1">
           {isTeacher
             ? "Your active and upcoming live lectures"
             : "Join live lectures or see what's coming up"}
@@ -74,14 +74,12 @@ export default async function LiveIndexPage() {
         </div>
 
         {liveLectures.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <Video className="h-10 w-10 text-muted-foreground/40" />
-              <p className="mt-3 text-sm text-muted-foreground">
-                No sessions are live right now
-              </p>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col items-center justify-center py-16 text-center rounded-2xl border border-border bg-card">
+            <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+              <Video className="h-8 w-8 text-muted-foreground/40" />
+            </div>
+            <p className="text-sm text-muted-foreground">No sessions are live right now</p>
+          </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {liveLectures.map((lecture) => (
@@ -130,19 +128,17 @@ export default async function LiveIndexPage() {
         </div>
 
         {upcomingLectures.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-              <CalendarDays className="h-10 w-10 text-muted-foreground/40" />
-              <p className="mt-3 text-sm text-muted-foreground">
-                No upcoming live lectures scheduled
-              </p>
-              {isTeacher && (
-                <Button variant="outline" size="sm" className="mt-4" asChild>
-                  <Link href="/schedule">Go to Schedule</Link>
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+          <div className="flex flex-col items-center justify-center py-16 text-center rounded-2xl border border-border bg-card">
+            <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+              <CalendarDays className="h-8 w-8 text-muted-foreground/40" />
+            </div>
+            <p className="text-sm text-muted-foreground">No upcoming live lectures scheduled</p>
+            {isTeacher && (
+              <Button variant="outline" size="sm" className="mt-4" asChild>
+                <Link href="/schedule">Go to Schedule</Link>
+              </Button>
+            )}
+          </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {upcomingLectures.map((lecture) => (

@@ -23,6 +23,7 @@
     "@fullcalendar/timegrid": "^6.1.0",
     "@livekit/components-react": "^2.7.0",
     "@livekit/components-styles": "^1.2.0",
+    "@livekit/track-processors": "^0.7.2",
     "@prisma/client": "^5.19.0",
     "@radix-ui/react-avatar": "^1.1.0",
     "@radix-ui/react-checkbox": "^1.1.0",
@@ -41,6 +42,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "date-fns": "^4.1.0",
+    "framer-motion": "^12.38.0",
     "livekit-client": "^2.6.0",
     "livekit-server-sdk": "^2.9.0",
     "lucide-react": "^0.447.0",
@@ -55,6 +57,7 @@
     "stripe": "^17.0.0",
     "tailwind-merge": "^2.5.0",
     "tailwindcss-animate": "^1.0.7",
+    "tldraw": "^4.5.7",
     "video.js": "^8.18.0",
     "zod": "^3.23.0"
   },

@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getStorageUrl } from "@/lib/utils";
 
 function getProgressPercent(progress: unknown): number {
   if (!progress || typeof progress !== "object") return 0;
@@ -60,20 +61,17 @@ export default async function MyCoursesPage() {
 
   if (enrollments.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="mb-6 rounded-full bg-muted p-6">
-          <GraduationCap className="h-12 w-12 text-muted-foreground" />
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="h-20 w-20 rounded-2xl bg-muted/50 flex items-center justify-center mb-4">
+          <GraduationCap className="h-10 w-10 text-muted-foreground/40" />
         </div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">
-          No courses yet
-        </h2>
-        <p className="mt-2 text-muted-foreground">
-          You haven&apos;t enrolled in any courses. Browse the catalog to get
-          started!
+        <h3 className="font-bold text-lg">No courses yet</h3>
+        <p className="text-sm text-muted-foreground mt-1">
+          You haven&apos;t enrolled in any courses. Browse the catalog to get started!
         </p>
-        <Button asChild className="mt-6">
+        <Button asChild className="mt-4 gap-2">
           <Link href="/courses">
-            <BookOpen className="mr-2 h-4 w-4" />
+            <BookOpen className="h-4 w-4" />
             Browse Courses
           </Link>
         </Button>
@@ -84,12 +82,9 @@ export default async function MyCoursesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-foreground">
-          My Courses
-        </h2>
-        <p className="text-muted-foreground">
-          {enrollments.length}{" "}
-          {enrollments.length === 1 ? "course" : "courses"} enrolled
+        <h1 className="text-3xl font-black tracking-tight">My Courses</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          {enrollments.length} {enrollments.length === 1 ? "course" : "courses"} enrolled
         </p>
       </div>
 
@@ -106,7 +101,7 @@ export default async function MyCoursesPage() {
               <div className="relative aspect-video bg-muted">
                 {course.thumbnail ? (
                   <Image
-                    src={course.thumbnail}
+                    src={getStorageUrl(course.thumbnail)}
                     alt={course.title}
                     fill
                     className="object-cover"

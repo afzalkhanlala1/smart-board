@@ -1,10 +1,19 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import { stripe, calculateFees } from "@/lib/stripe";
+import { stripe, isStripeConfigured } from "@/lib/stripe";
+import { fulfillCoursePurchase } from "@/lib/enrollment";
+import { createNotification } from "@/lib/notifications";
 import { db } from "@/lib/db";
 import Stripe from "stripe";
 
 export async function POST(req: Request) {
+  if (!isStripeConfigured() || !stripe) {
+    return NextResponse.json(
+      { error: "Stripe is not configured" },
+      { status: 503 }
+    );
+  }
+
   const body = await req.text();
   const headersList = headers();
   const signature = headersList.get("stripe-signature");
@@ -16,14 +25,17 @@ export async function POST(req: Request) {
     );
   }
 
-  let event: Stripe.Event;
-
-  try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret || webhookSecret.includes("placeholder")) {
+    return NextResponse.json(
+      { error: "Webhook secret is not configured" },
+      { status: 503 }
     );
+  }
+
+  let event: Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("Webhook signature verification failed:", message);
@@ -41,72 +53,46 @@ export async function POST(req: Request) {
 
     if (!studentId || !courseIdsRaw) {
       console.error("Missing metadata in checkout session", session.id);
+      return NextResponse.json({ error: "Missing metadata" }, { status: 400 });
+    }
+
+    let courseIds: string[] = [];
+    try {
+      courseIds = JSON.parse(courseIdsRaw);
+    } catch {
       return NextResponse.json(
-        { error: "Missing metadata" },
+        { error: "Invalid courseIds metadata" },
         { status: 400 }
       );
     }
 
-    const courseIds: string[] = JSON.parse(courseIdsRaw);
-
     try {
-      await db.$transaction(async (tx) => {
-        for (const courseId of courseIds) {
-          const course = await tx.course.findUnique({
-            where: { id: courseId },
-            select: { price: true, teacherId: true },
-          });
-
-          if (!course) continue;
-
-          const amount = Number(course.price);
-          const fees = calculateFees(amount);
-
-          await tx.transaction.create({
-            data: {
-              studentId,
-              courseId,
-              amount,
-              platformFee: fees.platformFee,
-              teacherEarning: fees.teacherEarning,
-              stripePaymentId: session.payment_intent as string | null,
-              stripeSessionId: session.id,
-              status: "COMPLETED",
-            },
-          });
-
-          await tx.enrollment.upsert({
-            where: {
-              studentId_courseId: { studentId, courseId },
-            },
-            create: {
-              studentId,
-              courseId,
-              paymentStatus: "COMPLETED",
-            },
-            update: {
-              paymentStatus: "COMPLETED",
-            },
-          });
-
-          await tx.teacherEarning.upsert({
-            where: { teacherId: course.teacherId },
-            create: {
-              teacherId: course.teacherId,
-              totalEarned: fees.teacherEarning,
-              pendingBalance: fees.teacherEarning,
-            },
-            update: {
-              totalEarned: { increment: fees.teacherEarning },
-              pendingBalance: { increment: fees.teacherEarning },
-            },
-          });
-        }
-
-        await tx.cartItem.deleteMany({
-          where: { studentId },
-        });
+      await fulfillCoursePurchase({
+        studentId,
+        courseIds,
+        stripeSessionId: session.id,
+        stripePaymentId:
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent?.id ?? null,
       });
+
+      const courses = await db.course.findMany({
+        where: { id: { in: courseIds } },
+        select: { id: true, title: true },
+      });
+
+      await Promise.all(
+        courses.map((c) =>
+          createNotification({
+            userId: studentId,
+            title: "Enrollment successful",
+            message: `You've been enrolled in "${c.title}".`,
+            type: "ENROLLMENT",
+            link: `/courses/${c.id}`,
+          })
+        )
+      );
     } catch (error) {
       console.error("Error processing checkout session:", error);
       return NextResponse.json(

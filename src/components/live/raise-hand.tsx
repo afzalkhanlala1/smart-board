@@ -75,6 +75,9 @@ export function RaiseHand({
         if (data.type === "hand-accepted" && data.participantId === userId) {
           setHandRaised(false);
           toast.success("You can now speak! Your microphone has been enabled.");
+          room.localParticipant.setMicrophoneEnabled(true).catch(() => {
+            toast.error("Could not enable microphone. Please check browser permissions.");
+          });
         }
       } catch {
         // Ignore non-JSON data

@@ -16,12 +16,33 @@ export async function GET(
   { params }: { params: { courseId: string } }
 ) {
   try {
+    const session = await auth();
     const course = await db.course.findUnique({
       where: { id: params.courseId },
-      select: { id: true },
+      select: { id: true, teacherId: true, status: true },
     });
 
     if (!course) {
+      return NextResponse.json({ error: "Course not found" }, { status: 404 });
+    }
+
+    const userId = session?.user?.id;
+    const isOwner = userId && course.teacherId === userId;
+    const isAdmin = session?.user?.role === "ADMIN";
+
+    let isEnrolled = false;
+    if (userId && !isOwner && !isAdmin) {
+      const enrollment = await db.enrollment.findUnique({
+        where: {
+          studentId_courseId: { studentId: userId, courseId: course.id },
+        },
+        select: { paymentStatus: true },
+      });
+      isEnrolled = enrollment?.paymentStatus === "COMPLETED";
+    }
+
+    // Draft/archived courses are only visible to the owner or admins.
+    if (course.status !== "PUBLISHED" && !isOwner && !isAdmin) {
       return NextResponse.json({ error: "Course not found" }, { status: 404 });
     }
 
@@ -36,7 +57,16 @@ export async function GET(
       },
     });
 
-    return NextResponse.json(lectures);
+    const canSeeRecordings = isOwner || isAdmin || isEnrolled;
+    const safeLectures = lectures.map((l) => ({
+      ...l,
+      // Hide the actual storage path from unauthorized viewers but still let
+      // them see the lecture exists (for the curriculum preview).
+      recordingUrl: canSeeRecordings ? l.recordingUrl : null,
+      resources: canSeeRecordings ? l.resources : [],
+    }));
+
+    return NextResponse.json(safeLectures);
   } catch (error) {
     console.error("Error fetching lectures:", error);
     return NextResponse.json(
