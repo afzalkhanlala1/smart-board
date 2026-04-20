@@ -90,15 +90,17 @@ export default function CartPage() {
         headers: { "Content-Type": "application/json" },
       });
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Checkout failed");
+        throw new Error(data?.error || "Checkout failed");
       }
 
-      const { url } = await res.json();
-      if (url) {
-        window.location.href = url;
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
       }
+
+      router.push("/cart/success?mock=1");
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to start checkout"

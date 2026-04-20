@@ -7,8 +7,8 @@ import {
   Tldraw,
   createTLStore,
   defaultShapeUtils,
+  type Editor,
   type TLRecord,
-  type TldrawEditor,
 } from "tldraw";
 import "tldraw/tldraw.css";
 import { PenLine, X } from "lucide-react";
@@ -31,7 +31,7 @@ export function Whiteboard({
   onClose,
 }: WhiteboardProps) {
   const room = useRoomContext();
-  const editorRef = useRef<TldrawEditor | null>(null);
+  const editorRef = useRef<Editor | null>(null);
   const [store] = useState(() =>
     createTLStore({ shapeUtils: defaultShapeUtils })
   );

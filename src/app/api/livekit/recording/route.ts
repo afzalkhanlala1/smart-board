@@ -52,9 +52,10 @@ export async function POST(req: NextRequest) {
 
       try {
         const egressClient = new EgressClient(livekitHost, apiKey, apiSecret);
+        const filepath = `recordings/${lectureId}-${Date.now()}.mp4`;
         const output = new EncodedFileOutput({
           fileType: EncodedFileType.MP4,
-          filepath: `recordings/${lectureId}-${Date.now()}.mp4`,
+          filepath,
         });
 
         const egress = await egressClient.startRoomCompositeEgress(
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
 
         await db.liveSession.update({
           where: { id: liveSession.id },
-          data: { egressId: egress.egressId },
+          data: { egressId: egress.egressId, recordingUrl: filepath },
         });
 
         return NextResponse.json({
@@ -110,7 +111,9 @@ export async function POST(req: NextRequest) {
         const egressClient = new EgressClient(livekitHost, apiKey, apiSecret);
         await egressClient.stopEgress(liveSession.egressId);
 
-        const recordingPath = `recordings/${lectureId}-recording.mp4`;
+        const recordingPath =
+          liveSession.recordingUrl ??
+          `recordings/${lectureId}-${Date.now()}.mp4`;
 
         await db.liveSession.update({
           where: { id: liveSession.id },

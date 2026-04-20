@@ -55,6 +55,7 @@ interface LiveRoomProps {
   courseTitle: string;
   lectureTitle: string;
   liveSessionId?: string;
+  initialSessionActive?: boolean;
 }
 
 export function LiveRoom({
@@ -67,6 +68,7 @@ export function LiveRoom({
   courseTitle,
   lectureTitle,
   liveSessionId: initialSessionId,
+  initialSessionActive = false,
 }: LiveRoomProps) {
   const [token, setToken] = useState<string>("");
   const [liveSessionId, setLiveSessionId] = useState(initialSessionId ?? "");
@@ -147,6 +149,7 @@ export function LiveRoom({
         courseTitle={courseTitle}
         lectureTitle={lectureTitle}
         liveSessionId={liveSessionId}
+        initialSessionActive={initialSessionActive}
       />
     </LiveKitRoom>
   );
@@ -162,23 +165,25 @@ interface RoomContentProps {
   courseTitle: string;
   lectureTitle: string;
   liveSessionId: string;
+  initialSessionActive: boolean;
 }
 
 function RoomContent({
   lectureId,
   courseId,
-  roomName,
+  roomName: _roomName,
   userName,
   userId,
   isTeacher,
   courseTitle,
   lectureTitle,
   liveSessionId,
+  initialSessionActive,
 }: RoomContentProps) {
   const room = useRoomContext();
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
-  const [sessionActive, setSessionActive] = useState(false);
+  const [sessionActive, setSessionActive] = useState(initialSessionActive);
   const [isMuted, setIsMuted] = useState(true);
   const [isCameraOff, setIsCameraOff] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);

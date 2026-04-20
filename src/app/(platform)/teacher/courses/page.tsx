@@ -1,13 +1,15 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { BookOpen, GraduationCap, MoreHorizontal, Pencil, Plus, Trash2, Users } from "lucide-react";
+import { BookOpen, GraduationCap, Pencil, Plus, Settings, Users } from "lucide-react";
 import { db } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { formatPrice, formatDate, getStorageUrl } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { CoursePublishToggle } from "@/components/course/course-publish-toggle";
+import { CourseDeleteButton } from "@/components/course/course-delete-button";
 import {
   Table,
   TableBody,
@@ -161,11 +163,26 @@ export default async function TeacherCoursesPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <Link href={`/teacher/courses/${course.id}`}>
+                            <Button variant="ghost" size="sm" title="Manage content">
+                              <Settings className="h-3.5 w-3.5" />
+                            </Button>
+                          </Link>
                           <Link href={`/create-course?courseId=${course.id}`}>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" title="Edit details">
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
                           </Link>
+                          <CoursePublishToggle
+                            courseId={course.id}
+                            status={course.status}
+                          />
+                          <CourseDeleteButton
+                            courseId={course.id}
+                            courseTitle={course.title}
+                            variant="ghost"
+                            iconOnly
+                          />
                         </div>
                       </TableCell>
                     </TableRow>

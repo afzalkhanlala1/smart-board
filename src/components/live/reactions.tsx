@@ -19,7 +19,7 @@ interface ReactionsProps {
 const EMOJIS = [
   { emoji: "\u{1F44D}", label: "thumbs up" },
   { emoji: "\u{1F44F}", label: "clap" },
-  { emoji: "\u{2764\uFE0F}", label: "heart" },
+  { emoji: "\u2764\uFE0F", label: "heart" },
   { emoji: "\u{1F602}", label: "laugh" },
   { emoji: "\u{1F389}", label: "party" },
   { emoji: "\u{1F914}", label: "thinking" },

@@ -296,7 +296,9 @@ export default function CalendarPage() {
                   {selectedEvent.status === "COMPLETED" &&
                     selectedEvent.recordingUrl && (
                       <Button asChild variant="outline">
-                        <a href={selectedEvent.recordingUrl} target="_blank" rel="noopener noreferrer">
+                        <a
+                          href={`/courses/${selectedEvent.courseId}/watch/${selectedEvent.lectureId}`}
+                        >
                           <Video className="mr-2 h-4 w-4" />
                           Watch Recording
                         </a>

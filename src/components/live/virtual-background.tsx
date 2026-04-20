@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useLocalParticipant } from "@livekit/components-react";
+import { Track } from "livekit-client";
 import { BackgroundBlur } from "@livekit/track-processors";
 import {
   EyeOff,
@@ -35,7 +36,7 @@ export function VirtualBackground({ isVisible, onClose }: VirtualBackgroundProps
     async (option: BgOption) => {
       setIsApplying(true);
       try {
-        const cameraPub = localParticipant.getTrackPublication("camera");
+        const cameraPub = localParticipant.getTrackPublication(Track.Source.Camera);
         const track = cameraPub?.track;
 
         if (!track) {

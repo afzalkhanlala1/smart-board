@@ -83,8 +83,8 @@ export default async function DashboardPage() {
           scheduledAt: l.scheduledAt?.toISOString() ?? null,
           course: { title: l.course.title },
         }))}
-        totalEarned={earnings?.totalEarned ?? 0}
-        pendingBalance={earnings?.pendingBalance ?? 0}
+        totalEarned={Number(earnings?.totalEarned ?? 0)}
+        pendingBalance={Number(earnings?.pendingBalance ?? 0)}
       />
     );
   }
@@ -98,7 +98,7 @@ export default async function DashboardPage() {
       db.transaction.findMany({ where: { status: "COMPLETED" }, select: { platformFee: true, createdAt: true } }),
     ]);
 
-    const platformRevenue = transactions.reduce((s, t) => s + (t.platformFee ?? 0), 0);
+    const platformRevenue = transactions.reduce((s, t) => s + Number(t.platformFee ?? 0), 0);
 
     const monthlyData = Array.from({ length: 6 }, (_, i) => {
       const month = subMonths(now, 5 - i);
@@ -106,7 +106,7 @@ export default async function DashboardPage() {
       const mEnd = endOfMonth(month);
       const revenue = transactions
         .filter((t) => t.createdAt >= mStart && t.createdAt <= mEnd)
-        .reduce((s, t) => s + (t.platformFee ?? 0), 0);
+        .reduce((s, t) => s + Number(t.platformFee ?? 0), 0);
       return { month: format(month, "MMM"), revenue: Math.round(revenue * 100) / 100 };
     });
 

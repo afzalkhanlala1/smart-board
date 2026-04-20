@@ -180,16 +180,18 @@ model Transaction {
   platformFee      Decimal       @db.Decimal(10, 2)
   teacherEarning   Decimal       @db.Decimal(10, 2)
   stripePaymentId  String?
-  stripeSessionId  String?       @unique
+  stripeSessionId  String?
   status           PaymentStatus @default(PENDING)
   createdAt        DateTime      @default(now())
 
   student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
+  @@unique([stripeSessionId, courseId])
   @@index([studentId])
   @@index([courseId])
   @@index([status])
+  @@index([stripeSessionId])
 }
 
 model TeacherEarning {

@@ -3,6 +3,29 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { z } from "zod";
 
+async function checkLectureAccess(
+  userId: string,
+  userRole: string | undefined,
+  lectureId: string
+) {
+  const lecture = await db.lecture.findUnique({
+    where: { id: lectureId },
+    select: { courseId: true, course: { select: { teacherId: true } } },
+  });
+  if (!lecture) return { ok: false, status: 404, error: "Lecture not found" };
+  if (lecture.course.teacherId === userId || userRole === "ADMIN") {
+    return { ok: true as const };
+  }
+  const enrollment = await db.enrollment.findUnique({
+    where: {
+      studentId_courseId: { studentId: userId, courseId: lecture.courseId },
+    },
+    select: { paymentStatus: true },
+  });
+  if (enrollment?.paymentStatus === "COMPLETED") return { ok: true as const };
+  return { ok: false as const, status: 403, error: "Access denied" };
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = await auth();
@@ -20,16 +43,25 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const access = await checkLectureAccess(
+      session.user.id,
+      session.user.role,
+      lectureId
+    );
+    if (!access.ok) {
+      return NextResponse.json(
+        { error: access.error },
+        { status: access.status }
+      );
+    }
+
     const liveSession = await db.liveSession.findUnique({
       where: { lectureId },
       select: { id: true },
     });
 
     if (!liveSession) {
-      return NextResponse.json(
-        { error: "Live session not found" },
-        { status: 404 }
-      );
+      return NextResponse.json([]);
     }
 
     const messages = await db.chatMessage.findMany({
@@ -40,6 +72,7 @@ export async function GET(req: NextRequest) {
           select: { id: true, name: true, role: true, avatar: true },
         },
       },
+      take: 500,
     });
 
     return NextResponse.json(messages);
@@ -55,7 +88,7 @@ export async function GET(req: NextRequest) {
 const chatSchema = z.object({
   liveSessionId: z.string().min(1),
   content: z.string().min(1).max(2000),
-  type: z.enum(["TEXT", "SYSTEM", "HAND_RAISE"]).default("TEXT"),
+  type: z.enum(["TEXT", "SYSTEM", "HAND_RAISE", "FILE"]).default("TEXT"),
 });
 
 export async function POST(req: NextRequest) {
@@ -70,13 +103,25 @@ export async function POST(req: NextRequest) {
 
     const liveSession = await db.liveSession.findUnique({
       where: { id: data.liveSessionId },
-      select: { id: true },
+      select: { id: true, lectureId: true },
     });
 
     if (!liveSession) {
       return NextResponse.json(
         { error: "Live session not found" },
         { status: 404 }
+      );
+    }
+
+    const access = await checkLectureAccess(
+      session.user.id,
+      session.user.role,
+      liveSession.lectureId
+    );
+    if (!access.ok) {
+      return NextResponse.json(
+        { error: access.error },
+        { status: access.status }
       );
     }
 

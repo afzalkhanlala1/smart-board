@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getStorageUrl } from "@/lib/utils";
 
 function getProgressPercent(progress: unknown): number {
   if (!progress || typeof progress !== "object") return 0;
@@ -100,7 +101,7 @@ export default async function MyCoursesPage() {
               <div className="relative aspect-video bg-muted">
                 {course.thumbnail ? (
                   <Image
-                    src={course.thumbnail}
+                    src={getStorageUrl(course.thumbnail)}
                     alt={course.title}
                     fill
                     className="object-cover"

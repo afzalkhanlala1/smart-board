@@ -25,7 +25,7 @@ export default async function LivePage({ params }: LivePageProps) {
         },
       },
       liveSession: {
-        select: { id: true },
+        select: { id: true, startedAt: true, endedAt: true },
       },
     },
   });
@@ -57,6 +57,10 @@ export default async function LivePage({ params }: LivePageProps) {
   }
 
   const roomName = generateRoomName(params.lectureId);
+  const isSessionActive =
+    lecture.status === "LIVE" ||
+    (lecture.liveSession?.startedAt != null &&
+      lecture.liveSession?.endedAt == null);
 
   return (
     <div className="-m-6">
@@ -64,12 +68,13 @@ export default async function LivePage({ params }: LivePageProps) {
         lectureId={params.lectureId}
         courseId={lecture.course.id}
         roomName={roomName}
-        userName={session.user.name}
+        userName={session.user.name ?? "Guest"}
         userId={session.user.id}
         isTeacher={isTeacher || isAdmin}
         courseTitle={lecture.course.title}
         lectureTitle={lecture.title}
         liveSessionId={lecture.liveSession?.id}
+        initialSessionActive={isSessionActive}
       />
     </div>
   );

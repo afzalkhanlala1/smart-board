@@ -8,7 +8,6 @@ import {
   GraduationCap,
   Pencil,
   PlayCircle,
-  ShoppingCart,
   Users,
   Video,
   Calendar,
@@ -22,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { AddToCartButton } from "@/components/course/add-to-cart-button";
 
 interface PageProps {
   params: { courseId: string };
@@ -95,16 +95,29 @@ export default async function CourseDetailPage({ params }: PageProps) {
   }
 
   let isEnrolled = false;
+  let inCart = false;
   if (session?.user?.id) {
-    const enrollment = await db.enrollment.findUnique({
-      where: {
-        studentId_courseId: {
-          studentId: session.user.id,
-          courseId: course.id,
+    const [enrollment, cartItem] = await Promise.all([
+      db.enrollment.findUnique({
+        where: {
+          studentId_courseId: {
+            studentId: session.user.id,
+            courseId: course.id,
+          },
         },
-      },
-    });
-    isEnrolled = !!enrollment;
+      }),
+      db.cartItem.findUnique({
+        where: {
+          studentId_courseId: {
+            studentId: session.user.id,
+            courseId: course.id,
+          },
+        },
+        select: { id: true },
+      }),
+    ]);
+    isEnrolled = enrollment?.paymentStatus === "COMPLETED";
+    inCart = !!cartItem;
   }
 
   const enrollmentCount = course._count.enrollments;
@@ -202,9 +215,19 @@ export default async function CourseDetailPage({ params }: PageProps) {
                 </div>
               ) : isEnrolled ? (
                 <div className="space-y-2">
-                  <Button className="w-full" size="lg" variant="outline" disabled>
-                    Already Enrolled
-                  </Button>
+                  <Link
+                    href={
+                      course.lectures[0]
+                        ? `/courses/${course.id}/watch/${course.lectures[0].id}`
+                        : `/my-courses`
+                    }
+                    className="block"
+                  >
+                    <Button className="w-full" size="lg">
+                      <PlayCircle className="h-4 w-4 mr-2" />
+                      Go to Course
+                    </Button>
+                  </Link>
                   <p className="text-xs text-muted-foreground text-center">
                     You have access to this course
                   </p>
@@ -212,10 +235,15 @@ export default async function CourseDetailPage({ params }: PageProps) {
               ) : (
                 <div className="space-y-2">
                   {session?.user ? (
-                    <Button className="w-full" size="lg">
-                      <ShoppingCart className="h-4 w-4 mr-2" />
-                      Add to Cart
-                    </Button>
+                    inCart ? (
+                      <Link href="/cart" className="block">
+                        <Button className="w-full" size="lg" variant="outline">
+                          View Cart
+                        </Button>
+                      </Link>
+                    ) : (
+                      <AddToCartButton courseId={course.id} />
+                    )
                   ) : (
                     <Link href="/login" className="block">
                       <Button className="w-full" size="lg">

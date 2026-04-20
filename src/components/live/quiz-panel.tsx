@@ -61,8 +61,10 @@ export function QuizPanel({
   const [isCreating, setIsCreating] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [showResults, setShowResults] = useState(false);
-  const [results, setResults] = useState<Record<string, Record<string, number>>>({});
+  const [showResultsFor, setShowResultsFor] = useState<string | null>(null);
+  const [resultsByQuiz, setResultsByQuiz] = useState<
+    Record<string, Record<string, Record<string, number>>>
+  >({});
   const [newTitle, setNewTitle] = useState("");
   const [newQuestions, setNewQuestions] = useState<
     Array<{
@@ -124,19 +126,16 @@ export function QuizPanel({
           fetchQuizzes();
         }
 
-        if (data.type === "quiz-results") {
-          setResults(data.results);
-          setShowResults(true);
-        }
-
         if (data.type === "quiz-answer" && isTeacher) {
-          setResults((prev) => {
-            const updated = { ...prev };
-            const qId = data.questionId;
-            const ans = data.answer;
-            if (!updated[qId]) updated[qId] = {};
-            updated[qId][ans] = (updated[qId][ans] || 0) + 1;
-            return updated;
+          setResultsByQuiz((prev) => {
+            const quizId = data.quizId as string;
+            const qId = data.questionId as string;
+            const ans = data.answer as string;
+            const updatedQuiz = { ...(prev[quizId] ?? {}) };
+            const qMap = { ...(updatedQuiz[qId] ?? {}) };
+            qMap[ans] = (qMap[ans] ?? 0) + 1;
+            updatedQuiz[qId] = qMap;
+            return { ...prev, [quizId]: updatedQuiz };
           });
         }
       } catch {
@@ -154,6 +153,28 @@ export function QuizPanel({
     if (!newTitle.trim() || newQuestions.some((q) => !q.question.trim())) {
       toast.error("Please fill in all question fields");
       return;
+    }
+
+    for (let i = 0; i < newQuestions.length; i++) {
+      const q = newQuestions[i];
+      if (q.type === "MULTIPLE_CHOICE") {
+        const validOptions = q.options.filter((o) => o.trim().length > 0);
+        if (validOptions.length < 2) {
+          toast.error(
+            `Question ${i + 1}: multiple choice needs at least 2 options`
+          );
+          return;
+        }
+        if (
+          q.correctAnswer &&
+          !validOptions.includes(q.correctAnswer)
+        ) {
+          toast.error(
+            `Question ${i + 1}: correct answer must match one of the options`
+          );
+          return;
+        }
+      }
     }
 
     setIsCreating(true);
@@ -217,7 +238,8 @@ export function QuizPanel({
           })
         );
         await room.localParticipant.publishData(payload, { reliable: true });
-        setResults({});
+        setResultsByQuiz((prev) => ({ ...prev, [quiz.id]: {} }));
+        setShowResultsFor(quiz.id);
         toast.success("Quiz launched");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Failed");
@@ -316,6 +338,21 @@ export function QuizPanel({
       prev.map((q, i) => (i === idx ? { ...q, [field]: value } : q))
     );
   };
+
+  // Student view (no active quiz)
+  if (!isTeacher && !activeQuiz) {
+    return (
+      <div className="border-b border-white/10">
+        <div className="flex items-center gap-2 px-4 py-2">
+          <ClipboardList className="h-4 w-4 text-white/40" />
+          <span className="text-sm font-medium text-white/60">Quiz</span>
+          <span className="ml-auto text-xs text-white/30">
+            None active
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   // Student active quiz view
   if (!isTeacher && activeQuiz) {
@@ -501,11 +538,15 @@ export function QuizPanel({
                       End
                     </Button>
                   )}
-                  {quiz.status === "ACTIVE" && (
+                  {(quiz.status === "ACTIVE" || quiz.status === "ENDED") && (
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setShowResults(!showResults)}
+                      onClick={() =>
+                        setShowResultsFor(
+                          showResultsFor === quiz.id ? null : quiz.id
+                        )
+                      }
                       className="text-sky-400 hover:bg-sky-500/20 h-7 text-xs"
                     >
                       <BarChart3 className="h-3 w-3 mr-1" />
@@ -514,49 +555,51 @@ export function QuizPanel({
                   )}
                 </div>
 
-                {showResults && quiz.status === "ACTIVE" && (
+                {showResultsFor === quiz.id && (
                   <div className="mt-2 space-y-2">
-                    {quiz.questions.map((q) => (
-                      <div key={q.id} className="text-xs">
-                        <p className="text-white/60 mb-1">{q.question}</p>
-                        {results[q.id] ? (
-                          Object.entries(results[q.id]).map(([ans, count]) => (
-                            <div
-                              key={ans}
-                              className="flex items-center gap-2 mb-0.5"
-                            >
-                              <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
+                    {quiz.questions.map((q) => {
+                      const quizResults = resultsByQuiz[quiz.id] ?? {};
+                      const qResults = quizResults[q.id];
+                      return (
+                        <div key={q.id} className="text-xs">
+                          <p className="text-white/60 mb-1">{q.question}</p>
+                          {qResults && Object.keys(qResults).length > 0 ? (
+                            Object.entries(qResults).map(([ans, count]) => {
+                              const total = Object.values(qResults).reduce(
+                                (a, b) => a + b,
+                                0
+                              );
+                              return (
                                 <div
-                                  className="h-full bg-emerald-500/40 rounded"
-                                  style={{
-                                    width: `${Math.min(
-                                      100,
-                                      (count /
-                                        Math.max(
-                                          1,
-                                          Object.values(results[q.id]).reduce(
-                                            (a, b) => a + b,
-                                            0
-                                          )
-                                        )) *
-                                        100
-                                    )}%`,
-                                  }}
-                                />
-                              </div>
-                              <span className="text-white/50 w-16 truncate">
-                                {ans}
-                              </span>
-                              <span className="text-white/70 font-medium w-6 text-right">
-                                {count}
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-white/30">No responses yet</p>
-                        )}
-                      </div>
-                    ))}
+                                  key={ans}
+                                  className="flex items-center gap-2 mb-0.5"
+                                >
+                                  <div className="flex-1 h-4 bg-white/5 rounded overflow-hidden">
+                                    <div
+                                      className="h-full bg-emerald-500/40 rounded"
+                                      style={{
+                                        width: `${Math.min(
+                                          100,
+                                          (count / Math.max(1, total)) * 100
+                                        )}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-white/50 w-16 truncate">
+                                    {ans}
+                                  </span>
+                                  <span className="text-white/70 font-medium w-6 text-right">
+                                    {count}
+                                  </span>
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <p className="text-white/30">No responses yet</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

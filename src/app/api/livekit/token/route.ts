@@ -72,15 +72,10 @@ export async function POST(req: NextRequest) {
 
     const token = await createToken(
       roomName,
-      session.user.name,
+      session.user.name ?? "Guest",
       session.user.id,
       isTeacher || isAdmin
     );
-
-    await db.liveSession.update({
-      where: { id: liveSession.id },
-      data: { participantsCount: { increment: 1 } },
-    });
 
     return NextResponse.json({
       token,
